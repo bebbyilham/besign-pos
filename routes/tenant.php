@@ -23,6 +23,7 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\CashierReportController;
+use App\Http\Controllers\StockCardReportController;
 use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\ProductReportController;
 use App\Http\Controllers\SellingReportController;
@@ -49,6 +50,8 @@ Route::middleware([
             ->name('product-report.generate');
         Route::get('/member/cashier-report/generate', CashierReportController::class)
             ->name('cashier-report.generate');
+        Route::get('/member/stock-card-report/generate', StockCardReportController::class)
+            ->name('stock-card-report.generate');
         Route::view('/member/sellings/{selling}/print', 'filament.tenant.pages.selling.print-receipt')
             ->name('selling.print');
         Route::get('/reset-password/{token}', ResetPassword::class)
@@ -132,7 +135,6 @@ Route::middleware([
                 Route::group(['prefix' => 'payment-method'], function () {
                     Route::get('/', [PaymentMethodController::class, 'index'])->can('read payment method');
                 });
-
             });
 
             Route::group(['prefix' => 'about'], function () {
@@ -206,7 +208,6 @@ Route::middleware([
             Route::get('/user', function (Request $request) {
                 return $request->user();
             });
-
         });
 
         Route::get('/', function () {

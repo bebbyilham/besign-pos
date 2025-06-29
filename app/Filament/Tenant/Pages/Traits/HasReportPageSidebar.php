@@ -6,6 +6,7 @@ use App\Filament\Tenant\Pages\CashierReport;
 use App\Filament\Tenant\Pages\ProductReport;
 use App\Filament\Tenant\Pages\PurchasingReport;
 use App\Filament\Tenant\Pages\SellingReport;
+use App\Filament\Tenant\Pages\StockCardReport;
 use AymanAlhattami\FilamentPageWithSidebar\FilamentPageSidebar;
 use AymanAlhattami\FilamentPageWithSidebar\PageNavigationItem;
 use AymanAlhattami\FilamentPageWithSidebar\Traits\HasPageSidebar;
@@ -27,6 +28,7 @@ trait HasReportPageSidebar
                 static::generateNavigationItem(ProductReport::class),
                 static::generateNavigationItem(CashierReport::class),
                 static::generateNavigationItem(PurchasingReport::class),
+                static::generateNavigationItem(StockCardReport::class),
             ]);
     }
 
@@ -46,7 +48,7 @@ trait HasReportPageSidebar
         return PageNavigationItem::make($resource::getLabel())
             ->visible($canAccess)
             ->icon($resource::getNavigationIcon())
-            ->isActiveWhen(fn (): bool => $active)
-            ->url(fn (): string => $resource::getUrl());
+            ->isActiveWhen(fn(): bool => $active)
+            ->url(fn(): string => $resource::getUrl());
     }
 }
