@@ -7,6 +7,7 @@ use App\Models\Tenants\Product;
 use App\Models\Tenants\Profile;
 use App\Models\Tenants\Stock;
 use App\Models\Tenants\SellingDetail;
+use App\Models\Tenants\StockOpnameItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
 
@@ -16,10 +17,13 @@ class StockCardReportService
     {
         $timezone = Profile::first()?->timezone ?? config('app.timezone', 'Asia/Jakarta');
         $about = About::first();
+        $tzName = $timezone;
 
-        $tzName = Carbon::parse($data['start_date'])->getTimezone()->getName();
-        $startDate = Carbon::parse($data['start_date'], $timezone)->setTimezone('UTC');
-        $endDate = Carbon::parse($data['end_date'], $timezone)->addDay()->setTimezone('UTC');
+        $startDateInput = $data['start_date'] ?? null;
+        $endDateInput = $data['end_date'] ?? null;
+
+        $startDate = $startDateInput ? Carbon::parse($startDateInput, $timezone)->setTimezone('UTC') : null;
+        $endDate = $endDateInput ? Carbon::parse($endDateInput, $timezone)->addDay()->setTimezone('UTC') : null;
 
         $productId = $data['product_id'] ?? null;
         if (!$productId) {
@@ -27,81 +31,45 @@ class StockCardReportService
         }
 
         $product = Product::find($productId);
+        if (!$product) {
+            return ['error' => 'Produk tidak ditemukan'];
+        }
 
-        // Header info
+        // Ambil logs
+        $logs = $this->ambilLogs($productId, $startDate, $endDate);
+
+        // Jika ada filter tanggal tapi kosong → ambil semua data
+        if ($startDate && $endDate && $logs->isEmpty()) {
+            $startDate = null;
+            $endDate = null;
+            $logs = $this->ambilLogs($productId, null, null);
+        }
+
+        // Header
         $header = [
             'shop_name' => $about?->shop_name,
             'shop_location' => $about?->shop_location,
             'business_type' => $about?->business_type,
             'owner_name' => $about?->owner_name,
-            'start_date' => $startDate->setTimezone($timezone)->format('d F Y'),
-            'end_date' => $endDate->subDay()->setTimezone($timezone)->format('d F Y'),
-            'product_name' => $product?->name ?? '-',
+            'start_date' => $startDate ? $startDate->copy()->setTimezone($tzName)->format('d F Y') : 'Semua data',
+            'end_date' => $endDate ? $endDate->copy()->subDay()->setTimezone($tzName)->format('d F Y') : 'Semua data',
+            'product_name' => $product->name,
         ];
 
-        $logs = collect();
-
-        // Pembelian
-        $logs = $logs->merge(
-            Stock::with('product', 'purchasing')
-                ->where('product_id', $productId)
-                ->whereNotNull('purchasing_id')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get()
-                ->map(function ($s) {
-                    return [
-                        'tanggal' => $s->date,
-                        'jenis_perubahan' => 'Masuk (Pembelian)',
-                        'jumlah' => $s->stock - $s->init_stock,
-                        'sumber' => 'Pembelian - ' . ($s->purchasing->number ?? '-'),
-                        'waktu_input' => $s->created_at,
-                    ];
-                })
-        );
-
-        // Penjualan
-        $logs = $logs->merge(
-            SellingDetail::with('product', 'selling')
-                ->where('product_id', $productId)
-                ->whereHas('selling', fn($q) => $q->whereBetween('date', [$startDate, $endDate]))
-                ->get()
-                ->map(function ($sd) {
-                    return [
-                        'tanggal' => $sd->selling->date,
-                        'jenis_perubahan' => 'Keluar (Penjualan)',
-                        'jumlah' => $sd->qty,
-                        'sumber' => 'Penjualan - ' . ($sd->selling->code ?? '-'),
-                        'waktu_input' => $sd->selling->created_at,
-                    ];
-                })
-        );
-
-        // Stock Opname
-        $logs = $logs->merge(
-            Stock::with('product')
-                ->where('product_id', $productId)
-                ->whereNotNull('type')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get()
-                ->map(function ($s) {
-                    return [
-                        'tanggal' => $s->date,
-                        'jenis_perubahan' => $s->type === 'in' ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)',
-                        // 'jumlah' => abs($s->stock - $s->init_stock),
-                        'jumlah' => $s->init_stock,
-                        'sumber' => 'Stock Opname',
-                        'waktu_input' => $s->created_at,
-                    ];
-                })
-        );
-
-        // Sort & hitung stok akhir
+        // Perhitungan stok akhir
         $stokAkhir = 0;
         $reports = $logs
-            ->sortBy(fn($log) => $log['waktu_input']) // Hitung dulu dari urutan lama
+            ->sortBy(fn($log) => $log['waktu_input'])
             ->values()
             ->map(function ($log) use (&$stokAkhir, $tzName) {
-                $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk') ? $log['jumlah'] : -$log['jumlah'];
+                if (isset($log['stok_set'])) {
+                    // Reset ke actual_stock dari stock opname
+                    $stokAkhir = $log['stok_set'];
+                } else {
+                    $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk')
+                        ? $log['jumlah']
+                        : -$log['jumlah'];
+                }
 
                 return [
                     'tanggal' => Carbon::parse($log['tanggal'])->setTimezone($tzName)->format('d F Y'),
@@ -112,15 +80,82 @@ class StockCardReportService
                     'stok_akhir' => $this->formatCurrency($stokAkhir),
                 ];
             })
-            ->reverse(); // Baru balik tampilannya
-
-        $footer = [];
+            ->reverse();
 
         return [
             'header' => $header,
             'reports' => $reports,
-            'footer' => $footer,
+            'footer' => [],
         ];
+    }
+
+    private function ambilLogs($productId, $startDate = null, $endDate = null)
+    {
+        $logs = collect();
+
+        // Pembelian
+        $pembelian = Stock::with('product', 'purchasing')
+            ->where('product_id', $productId)
+            ->whereNotNull('purchasing_id');
+
+        if ($startDate && $endDate) {
+            $pembelian->whereBetween('date', [$startDate, $endDate]);
+        }
+
+        $logs = $logs->merge(
+            $pembelian->get()->map(function ($s) {
+                return [
+                    'tanggal' => $s->date,
+                    'jenis_perubahan' => 'Masuk (Pembelian)',
+                    'jumlah' => $s->stock - $s->init_stock,
+                    'sumber' => 'Pembelian - ' . ($s->purchasing->number ?? '-'),
+                    'waktu_input' => $s->created_at,
+                ];
+            })
+        );
+
+        // Penjualan
+        $penjualan = SellingDetail::with('product', 'selling')
+            ->where('product_id', $productId);
+
+        if ($startDate && $endDate) {
+            $penjualan->whereHas('selling', fn($q) => $q->whereBetween('date', [$startDate, $endDate]));
+        }
+
+        $logs = $logs->merge(
+            $penjualan->get()->map(function ($sd) {
+                return [
+                    'tanggal' => $sd->selling->date,
+                    'jenis_perubahan' => 'Keluar (Penjualan)',
+                    'jumlah' => $sd->qty,
+                    'sumber' => 'Penjualan - ' . ($sd->selling->code ?? '-'),
+                    'waktu_input' => $sd->selling->created_at,
+                ];
+            })
+        );
+
+        // Stock Opname
+        $opname = StockOpnameItem::where('product_id', $productId);
+
+        if ($startDate && $endDate) {
+            $opname->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        $logs = $logs->merge(
+            $opname->get()->map(function ($s) {
+                $jenis = $s->missing_stock < 0 ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)';
+                return [
+                    'tanggal' => $s->created_at,
+                    'jenis_perubahan' => $jenis,
+                    'jumlah' => abs($s->missing_stock),
+                    'sumber' => 'Stock Opname',
+                    'waktu_input' => $s->created_at,
+                    'stok_set' => $s->actual_stock, // untuk reset stok akhir
+                ];
+            })
+        );
+
+        return $logs;
     }
 
     private function formatCurrency($value)

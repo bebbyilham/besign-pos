@@ -96,8 +96,8 @@ class StockCardReport extends Page implements HasActions, HasForms
     public function generate(StockCardReportService $StockCardReportService)
     {
         $this->validate([
-            'data.start_date' => 'required',
-            'data.end_date' => 'required',
+            // 'data.start_date' => 'required',
+            // 'data.end_date' => 'required',
             'data.product_id' => 'required',
         ]);
 
