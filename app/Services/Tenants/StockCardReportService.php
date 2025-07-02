@@ -7,6 +7,7 @@ use App\Models\Tenants\Product;
 use App\Models\Tenants\Profile;
 use App\Models\Tenants\Stock;
 use App\Models\Tenants\SellingDetail;
+use App\Models\Tenants\StockOpnameItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
 
@@ -34,16 +35,39 @@ class StockCardReportService
             return ['error' => 'Produk tidak ditemukan'];
         }
 
-        // Helper function untuk ambil transaksi
+        // Ambil init_stock awal dari tabel stocks (stok masuk pertama)
+        $stokAwalRow = Stock::where('product_id', $productId)
+            ->where('type', 'in')
+            ->orderBy('date')
+            ->orderBy('created_at')
+            ->first();
+
+        $stokAkhir = $stokAwalRow?->init_stock ?? 0;
+
+        // Ambil transaksi dalam periode
         $logs = $this->ambilLogs($productId, $startDate, $endDate);
 
-        // Jika rentang tanggal disediakan tapi tidak ada transaksi, ambil semua data
+        // Jika tanggal diset tapi kosong transaksi, fallback ke semua data
         if ($startDate && $endDate && $logs->isEmpty()) {
             $startDate = null;
             $endDate = null;
             $logs = $this->ambilLogs($productId, null, null);
         }
 
+        // Siapkan laporan awal dengan Stok Awal
+        $stokAwalTanggal = $stokAwalRow?->date ?? now();
+        $stokAwalCreated = $stokAwalRow?->created_at ?? now();
+
+        $logs->prepend([
+            'tanggal' => $stokAwalTanggal,
+            'jenis_perubahan' => 'Stok Awal',
+            'jumlah' => 0,
+            'sumber' => '-',
+            'waktu_input' => $stokAwalCreated,
+            'stok_set' => $stokAkhir,
+        ]);
+
+        // Header
         $header = [
             'shop_name' => $about?->shop_name,
             'shop_location' => $about?->shop_location,
@@ -54,17 +78,23 @@ class StockCardReportService
             'product_name' => $product->name,
         ];
 
-        $stokAkhir = 0;
+        // Perhitungan stok akhir per transaksi
         $reports = $logs
             ->sortBy(fn($log) => $log['waktu_input'])
             ->values()
             ->map(function ($log) use (&$stokAkhir, $tzName) {
-                $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk') ? $log['jumlah'] : -$log['jumlah'];
+                if (isset($log['stok_set'])) {
+                    $stokAkhir = $log['stok_set'];
+                } else {
+                    $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk')
+                        ? $log['jumlah']
+                        : -$log['jumlah'];
+                }
 
                 return [
                     'tanggal' => Carbon::parse($log['tanggal'])->setTimezone($tzName)->format('d F Y'),
                     'jenis_perubahan' => $log['jenis_perubahan'],
-                    'jumlah' => $this->formatCurrency($log['jumlah']),
+                    'jumlah' => $log['jumlah'] === 0 ? '-' : $this->formatCurrency($log['jumlah']),
                     'sumber' => $log['sumber'],
                     'waktu_input' => Carbon::parse($log['waktu_input'])->setTimezone($tzName)->format('d F Y H:i'),
                     'stok_akhir' => $this->formatCurrency($stokAkhir),
@@ -79,10 +109,11 @@ class StockCardReportService
         ];
     }
 
-    private function ambilLogs($productId, $startDate, $endDate)
+    private function ambilLogs($productId, $startDate = null, $endDate = null)
     {
         $logs = collect();
 
+        // Pembelian
         $pembelian = Stock::with('product', 'purchasing')
             ->where('product_id', $productId)
             ->whereNotNull('purchasing_id');
@@ -96,13 +127,14 @@ class StockCardReportService
                 return [
                     'tanggal' => $s->date,
                     'jenis_perubahan' => 'Masuk (Pembelian)',
-                    'jumlah' => $s->stock - $s->init_stock,
+                    'jumlah' => $s->init_stock,
                     'sumber' => 'Pembelian - ' . ($s->purchasing->number ?? '-'),
                     'waktu_input' => $s->created_at,
                 ];
             })
         );
 
+        // Penjualan
         $penjualan = SellingDetail::with('product', 'selling')
             ->where('product_id', $productId);
 
@@ -122,26 +154,23 @@ class StockCardReportService
             })
         );
 
-        $opname = Stock::with('product')
-            ->where('product_id', $productId)
-            ->whereNotNull('type');
+        // Stock Opname
+        $opname = StockOpnameItem::where('product_id', $productId);
 
         if ($startDate && $endDate) {
-            $opname->whereBetween('date', [$startDate, $endDate]);
+            $opname->whereBetween('created_at', [$startDate, $endDate]);
         }
 
         $logs = $logs->merge(
             $opname->get()->map(function ($s) {
-                $jumlah = $s->type === 'in'
-                    ? $s->stock - $s->init_stock
-                    : $s->init_stock - $s->stock;
-
+                $jenis = $s->missing_stock < 0 ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)';
                 return [
-                    'tanggal' => $s->date,
-                    'jenis_perubahan' => $s->type === 'in' ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)',
-                    'jumlah' => abs($jumlah),
+                    'tanggal' => $s->created_at,
+                    'jenis_perubahan' => $jenis,
+                    'jumlah' => abs($s->missing_stock),
                     'sumber' => 'Stock Opname',
                     'waktu_input' => $s->created_at,
+                    'stok_set' => $s->actual_stock,
                 ];
             })
         );
