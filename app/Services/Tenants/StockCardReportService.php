@@ -35,15 +35,37 @@ class StockCardReportService
             return ['error' => 'Produk tidak ditemukan'];
         }
 
-        // Ambil logs
+        // Ambil init_stock awal dari tabel stocks (stok masuk pertama)
+        $stokAwalRow = Stock::where('product_id', $productId)
+            ->where('type', 'in')
+            ->orderBy('date')
+            ->orderBy('created_at')
+            ->first();
+
+        $stokAkhir = $stokAwalRow?->init_stock ?? 0;
+
+        // Ambil transaksi dalam periode
         $logs = $this->ambilLogs($productId, $startDate, $endDate);
 
-        // Jika ada filter tanggal tapi kosong → ambil semua data
+        // Jika tanggal diset tapi kosong transaksi, fallback ke semua data
         if ($startDate && $endDate && $logs->isEmpty()) {
             $startDate = null;
             $endDate = null;
             $logs = $this->ambilLogs($productId, null, null);
         }
+
+        // Siapkan laporan awal dengan Stok Awal
+        $stokAwalTanggal = $stokAwalRow?->date ?? now();
+        $stokAwalCreated = $stokAwalRow?->created_at ?? now();
+
+        $logs->prepend([
+            'tanggal' => $stokAwalTanggal,
+            'jenis_perubahan' => 'Stok Awal',
+            'jumlah' => 0,
+            'sumber' => '-',
+            'waktu_input' => $stokAwalCreated,
+            'stok_set' => $stokAkhir,
+        ]);
 
         // Header
         $header = [
@@ -56,14 +78,12 @@ class StockCardReportService
             'product_name' => $product->name,
         ];
 
-        // Perhitungan stok akhir
-        $stokAkhir = 0;
+        // Perhitungan stok akhir per transaksi
         $reports = $logs
             ->sortBy(fn($log) => $log['waktu_input'])
             ->values()
             ->map(function ($log) use (&$stokAkhir, $tzName) {
                 if (isset($log['stok_set'])) {
-                    // Reset ke actual_stock dari stock opname
                     $stokAkhir = $log['stok_set'];
                 } else {
                     $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk')
@@ -74,7 +94,7 @@ class StockCardReportService
                 return [
                     'tanggal' => Carbon::parse($log['tanggal'])->setTimezone($tzName)->format('d F Y'),
                     'jenis_perubahan' => $log['jenis_perubahan'],
-                    'jumlah' => $this->formatCurrency($log['jumlah']),
+                    'jumlah' => $log['jumlah'] === 0 ? '-' : $this->formatCurrency($log['jumlah']),
                     'sumber' => $log['sumber'],
                     'waktu_input' => Carbon::parse($log['waktu_input'])->setTimezone($tzName)->format('d F Y H:i'),
                     'stok_akhir' => $this->formatCurrency($stokAkhir),
@@ -150,7 +170,7 @@ class StockCardReportService
                     'jumlah' => abs($s->missing_stock),
                     'sumber' => 'Stock Opname',
                     'waktu_input' => $s->created_at,
-                    'stok_set' => $s->actual_stock, // untuk reset stok akhir
+                    'stok_set' => $s->actual_stock,
                 ];
             })
         );
