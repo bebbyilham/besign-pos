@@ -35,10 +35,10 @@ class StockCardReportService
             return ['error' => 'Produk tidak ditemukan'];
         }
 
-        // Ambil logs
+        // Ambil logs berdasarkan tanggal (jika ada)
         $logs = $this->ambilLogs($productId, $startDate, $endDate);
 
-        // Jika ada filter tanggal tapi kosong → ambil semua data
+        // Jika tidak ada transaksi dalam rentang, ambil semua data
         if ($startDate && $endDate && $logs->isEmpty()) {
             $startDate = null;
             $endDate = null;
@@ -56,20 +56,13 @@ class StockCardReportService
             'product_name' => $product->name,
         ];
 
-        // Perhitungan stok akhir
+        // Sort dan hitung stok
         $stokAkhir = 0;
         $reports = $logs
             ->sortBy(fn($log) => $log['waktu_input'])
             ->values()
             ->map(function ($log) use (&$stokAkhir, $tzName) {
-                if (isset($log['stok_set'])) {
-                    // Reset ke actual_stock dari stock opname
-                    $stokAkhir = $log['stok_set'];
-                } else {
-                    $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk')
-                        ? $log['jumlah']
-                        : -$log['jumlah'];
-                }
+                $stokAkhir += str_starts_with($log['jenis_perubahan'], 'Masuk') ? $log['jumlah'] : -$log['jumlah'];
 
                 return [
                     'tanggal' => Carbon::parse($log['tanggal'])->setTimezone($tzName)->format('d F Y'),
@@ -134,7 +127,7 @@ class StockCardReportService
             })
         );
 
-        // Stock Opname
+        // Stock Opname (dari stock_opname_items)
         $opname = StockOpnameItem::where('product_id', $productId);
 
         if ($startDate && $endDate) {
@@ -144,13 +137,13 @@ class StockCardReportService
         $logs = $logs->merge(
             $opname->get()->map(function ($s) {
                 $jenis = $s->missing_stock < 0 ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)';
+
                 return [
                     'tanggal' => $s->created_at,
                     'jenis_perubahan' => $jenis,
                     'jumlah' => abs($s->missing_stock),
                     'sumber' => 'Stock Opname',
                     'waktu_input' => $s->created_at,
-                    'stok_set' => $s->actual_stock, // untuk reset stok akhir
                 ];
             })
         );
