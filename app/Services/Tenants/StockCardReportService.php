@@ -163,7 +163,7 @@ class StockCardReportService
 
         $logs = $logs->merge(
             $opname->get()->map(function ($s) {
-                $jenis = $s->missing_stock < 0 ? 'Masuk (Stock Opname)' : 'Keluar (Stock Opname)';
+                $jenis = $s->missing_stock < 0 ? 'Masuk (Stock Opname - ' . $s->adjustment_type . ')' : 'Keluar (Stock Opname- ' . $s->adjustment_type . ')';
                 return [
                     'tanggal' => $s->created_at,
                     'jenis_perubahan' => $jenis,
