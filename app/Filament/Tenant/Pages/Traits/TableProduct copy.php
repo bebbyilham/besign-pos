@@ -41,20 +41,25 @@ trait TableProduct
             ->paginated(false)
             ->columns([
                 Stack::make([
-
+                    ImageColumn::make('hero_image')
+                        ->translateLabel()
+                        ->alignCenter()
+                        ->extraAttributes([
+                            'class' => 'py-0',
+                        ])
+                        ->extraImgAttributes([
+                            'class' => 'mb-4 object-cover -mt-4 xl:w-[200px] md:w-[180px] w-[150px]',
+                        ])
+                        ->height(100),
                     TextColumn::make('selling_price')
                         ->color('primary')
                         ->money(Setting::get('currency', 'IDR'))
-                        ->size('2xl')
-                        ->extraAttributes([
-                            'class' => 'font-extrabold text-right',
-                        ])
                         ->columnStart(0),
                     TextColumn::make('name')
                         ->size('lg')
                         ->searchable(['sku', 'name', 'barcode'])
                         ->extraAttributes([
-                            'class' => 'font-bold text-left truncate',
+                            'class' => 'font-bold',
                         ]),
                     TextColumn::make('stock')
                         ->hidden(function (Product $product) {
@@ -77,7 +82,7 @@ trait TableProduct
                 ]),
             ])
             ->contentGrid([
-                'md' => 3,
+                'md' => 4,
                 'xl' => 6,
             ])
             ->headerActionsPosition(HeaderActionsPosition::Bottom)
@@ -115,9 +120,6 @@ trait TableProduct
                     })
                     ->color('white')
                     ->icon('heroicon-o-shopping-bag')
-                    ->extraAttributes([
-                        'class' => 'w-full h-12 text-xl',
-                    ])
                     ->hidden(fn(Product $product) => ! $product->CartItems()->exists()),
             ]);
     }
