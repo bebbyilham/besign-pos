@@ -101,45 +101,31 @@ use App\Models\Tenants\{Profile, Setting, About};
                   @endif
                 </div>
               </div>
-              <div class="flex flex-wrap items-center gap-2 sm:gap-3 py-2">
-                <!-- Tombol Tambah -->
-                <button
-                  class="flex items-center justify-center bg-lakasir-primary hover:bg-lakasir-primary/90 text-white rounded-xl w-12 h-12 sm:w-10 sm:h-10 shadow transition"
-                  wire:click.stop="addCart({{ $item->product_id }})"
-                  wire:loading.attr="disabled"
-                  title="Tambah">
-                  <x-heroicon-o-plus-small class="w-6 h-6 sm:w-5 sm:h-5" />
-                </button>
-              
-                <!-- Qty -->
-                <div class="flex items-center justify-center text-lg font-semibold w-10 h-12 sm:h-10 sm:text-base">
-                  {{ $item->qty }}
+                <div class="flex space-x-3 h-8">
+                  <button
+                    class="!bg-lakasir-primary rounded-lg px-2 py-1"
+                    wire:click.stop="addCart( {{ $item->product_id  }} )"
+                    wire:loading.attr="disabled"
+                    >
+                    <x-heroicon-o-plus-small class="!text-white h-4 w-4"/>
+                  </button>
+                  <p class="my-auto">{{ $item->qty }}</p>
+                  <button
+                    class="!bg-gray-100 rounded-lg px-2 py-1"
+                    wire:click="reduceCart({{  $item->product_id  }})"
+                    wire:loading.attr="disabled"
+                    >
+                    <x-heroicon-o-minus-small class="!text-green-900 h-4 w-4"/>
+                  </button>
+                  <button
+                    class="!bg-danger-100 rounded-lg px-2 py-1"
+                    wire:click="deleteCart({{ $item->id  }})"
+                    wire:loading.attr="disabled"
+                    >
+                    <x-heroicon-o-trash class="!text-danger-900 h-4 w-4"/>
+                  </button>
+                  <livewire:price-setting :cart-item="$item" key="{{ $item->id }}" />
                 </div>
-              
-                <!-- Tombol Kurangi -->
-                <button
-                  class="flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-green-900 rounded-xl w-12 h-12 sm:w-10 sm:h-10 shadow transition"
-                  wire:click="reduceCart({{ $item->product_id }})"
-                  wire:loading.attr="disabled"
-                  title="Kurangi">
-                  <x-heroicon-o-minus-small class="w-6 h-6 sm:w-5 sm:h-5" />
-                </button>
-              
-                <!-- Tombol Hapus -->
-                <button
-                  class="flex items-center justify-center bg-danger-100 hover:bg-danger-200 text-danger-900 rounded-xl w-12 h-12 sm:w-10 sm:h-10 shadow transition"
-                  wire:click="deleteCart({{ $item->id }})"
-                  wire:loading.attr="disabled"
-                  title="Hapus dari keranjang">
-                  <x-heroicon-o-trash class="w-6 h-6 sm:w-5 sm:h-5" />
-                </button>
-              
-                <!-- Harga/Setting -->
-                <div class="ml-auto">
-                  <livewire:price-setting :cart-item="$item" :key="$item->id" />
-                </div>
-              </div>
-              
             </div>
           @empty
             <div class="flex justify-center items-center h-40 border bg-white rounded-lg dark:border-gray-900 dark:bg-gray-900">
