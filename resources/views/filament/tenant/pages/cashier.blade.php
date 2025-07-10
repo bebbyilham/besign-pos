@@ -4,7 +4,7 @@ use App\Features\{PaymentShortcutButton, SellingTax, Discount};
 use App\Models\Tenants\{Profile, Setting, About};
 @endphp
 <div class="">
-  <div class="grid grid-cols-2 gap-x-4">
+  <div class="grid grid-cols-4 gap-x-4">
     <div class="col-span-2">
       {{ $this->table }}
     </div>
