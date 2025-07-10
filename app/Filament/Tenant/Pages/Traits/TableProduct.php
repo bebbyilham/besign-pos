@@ -77,8 +77,8 @@ trait TableProduct
                 ]),
             ])
             ->contentGrid([
-                'md' => 6,
-                'xl' => 2,
+                'md' => 3,
+                'xl' => 3,
             ])
             ->headerActionsPosition(HeaderActionsPosition::Bottom)
             ->searchPlaceholder(__('Search (SKU, name, barcode)'))
