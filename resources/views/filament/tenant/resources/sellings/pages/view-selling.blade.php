@@ -56,7 +56,7 @@
             <tr>
               <td class="p-2 border">
                 <h3 class="text-black">{{ $detail->product->name }}</h3><span class="text-sm text-secondary"></span></td>
-              <td class="p-2 border text-center text-black">{{ Number::currency($detail->price, Setting::get('currency', 'IDR')) }}</td>
+              <td class="p-2 border text-center text-black">{{ Number::currency($detail->product->selling_price, Setting::get('currency', 'IDR')) }}</td>
               <td class="p-2 border text-center text-black">{{ $detail->qty }}</td>
               <td class="p-2 border text-center text-black">{{ Number::currency($detail->discount_price, Setting::get('currency', 'IDR')) }}</td>
               <td class="p-2 border text-center text-black">{{ Number::currency($detail->total_price, Setting::get('currency', 'IDR')) }}</td>
