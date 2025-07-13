@@ -147,6 +147,7 @@ trait CartInteraction
                 ->warning()
                 ->send();
 
+
             return;
         }
 
@@ -163,7 +164,9 @@ trait CartInteraction
             'amount' => $stock,
         ]);
 
-        //Kirim event ke JS untuk clear input & focus
-        $this->dispatchBrowserEvent('focus-search');
+        // ✅ Reset input + beep
+        \Filament\Support\Facades\Browser::script(
+            "window.dispatchEvent(new CustomEvent('focus-search'))"
+        );
     }
 }
