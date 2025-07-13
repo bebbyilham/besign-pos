@@ -30,8 +30,8 @@ trait CartInteraction
         if (! $data) {
             $qty = (
                 CartItem::whereProductId($product->getKey())
-                    ->cashier()
-                    ->first()
+                ->cashier()
+                ->first()
                 ->qty ?? 0
             ) + 1;
         } else {
@@ -162,5 +162,8 @@ trait CartInteraction
         $this->addCart($product, [
             'amount' => $stock,
         ]);
+
+        //Kirim event ke JS untuk clear input & focus
+        $this->dispatchBrowserEvent('focus-search');
     }
 }

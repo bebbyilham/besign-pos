@@ -107,7 +107,16 @@ trait TableProduct
                     ->extraAttributes([
                         'class' => 'mr-auto w-full',
                     ])
-                    ->action(fn(Product $product, array $data) => $this->addCart($product, $data))
+                    ->action(function (Product $product, array $data) {
+                        $this->addCart($product, $data);
+
+                        // Reset pencarian
+                        $this->tableSearch = '';
+
+                        // Fokus ulang ke search input (di Blade pakai JS listener)
+                        $this->dispatchBrowserEvent('focus-search');
+                    })
+
                     ->hiddenLabel(),
                 Action::make('cart')
                     ->label(function (Product $product) {

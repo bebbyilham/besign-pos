@@ -751,5 +751,14 @@ use App\Models\Tenants\{Profile, Setting, About};
       barcodeData = '';
     }, 500);
   });
+
+  window.addEventListener('focus-search', () => {
+        const input = document.querySelector('input[type="search"]');
+        if (input) {
+            input.value = '';      // Kosongkan input
+            input.focus();         // Fokus kembali
+            input.select();        // Select teks (jika masih ada)
+        }
+    });
 </script>
 @endscript

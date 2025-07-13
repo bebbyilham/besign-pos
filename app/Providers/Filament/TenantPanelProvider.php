@@ -135,10 +135,20 @@ class TenantPanelProvider extends PanelProvider
             ...Pages\Dashboard::getNavigationItems(),
             $this->generateNavigationItem(Cashier::class),
             $this->generateNavigationItem(POS::class, PosV2::class),
-            $this->generateNavigationItem(SellingResource::class),
-            $this->generateNavigationItem(SupplierResource::class, Supplier::class),
+            // $this->generateNavigationItem(SellingResource::class),
+            auth()->user()?->can('generate selling report')
+                ? $this->generateNavigationItem(SellingResource::class)
+                : null,
+
+            // $this->generateNavigationItem(SupplierResource::class, Supplier::class),
+            auth()->user()?->can('read supplier')
+                ? $this->generateNavigationItem(SupplierResource::class, Supplier::class)
+                : null,
             $this->generateNavigationItem(MemberResource::class, Member::class),
-            $this->generateNavigationItem(PaymentMethodResource::class, PaymentMethod::class),
+            // $this->generateNavigationItem(PaymentMethodResource::class, PaymentMethod::class),
+            auth()->user()?->can('read payment method')
+                ? $this->generateNavigationItem(PaymentMethodResource::class, PaymentMethod::class)
+                : null,
             $this->generateNavigationItem(ReceivableResource::class, Receivable::class),
         ];
     }
@@ -158,26 +168,48 @@ class TenantPanelProvider extends PanelProvider
                 $this->generateNavigationItem(RoleResource::class, Role::class),
                 $this->generateNavigationItem(PermissionResource::class, Permission::class),
             ]),
-            NavigationGroup::make(__('Report'))->label('')->collapsible(false)->items([
-                $this->generateNavigationItem(
-                    resource: Report::class,
-                    activeWhen: [
-                        SellingReport::class,
-                        ProductReport::class,
-                        CashierReport::class,
-                        PurchasingReport::class,
-                    ]
-                ),
-            ]),
+            // NavigationGroup::make(__('Report'))->label('')->collapsible(false)->items([
+            //     $this->generateNavigationItem(
+            //         resource: Report::class,
+            //         activeWhen: [
+            //             // SellingReport::class,
+            //             ProductReport::class,
+            //             CashierReport::class,
+            //         ]
+            //     ),
+            // ]),
+            NavigationGroup::make(__('Report'))
+                ->label('')
+                ->collapsible(false)
+                ->items(array_filter([
+                    auth()->user()?->can('generate product report')
+                        ? $this->generateNavigationItem(Report::class)
+                        : null,
+
+                    // $this->generateNavigationItem(
+                    //     resource: Report::class,
+                    //     activeWhen: [
+                    //         SellingReport::class,
+                    //         ProductReport::class,
+                    //         CashierReport::class,
+                    //     ]
+                    // ),
+                ])),
+
             NavigationGroup::make(__('General'))->label('')->collapsible(false)->items([
                 $this->generateNavigationItem(VoucherResource::class, Voucher::class),
             ]),
-            NavigationGroup::make(__('Setting'))->collapsible(false)->items([
-                $this->generateNavigationItem(GeneralSetting::class),
-                $this->generateNavigationItem(Printer::class),
-            ]),
+            // NavigationGroup::make(__('Setting'))->collapsible(false)->items([
+            //     $this->generateNavigationItem(GeneralSetting::class),
+            //     $this->generateNavigationItem(Printer::class),
+            // ]),
+            NavigationGroup::make(__('Setting'))->collapsible(false)->items(array_filter([
+                auth()->user()?->can('update about') ? $this->generateNavigationItem(GeneralSetting::class) : null,
+                auth()->user()?->can('can print selling') ? $this->generateNavigationItem(Printer::class) : null,
+            ])),
         ];
     }
+
 
     private function getMiddleware(): array
     {
