@@ -16,7 +16,7 @@ use App\Models\Tenants\{Profile, Setting, About};
           <div class="flex items-center">
             <div class="xl:flex gap-x-2 hidden items-center">
               <a
-                href="/member/sellings"
+                href="/member"
                 class="py-1 px-4 flex justify-center items-center bg-gray-100 rounded-lg gap-x-1 text-gray-500">
                 <x-heroicon-o-arrow-left class="h-4 w-4 text-gray-500"/>
                   <p class="hidden lg:block">{{ __('Back') }} </p>
@@ -57,11 +57,11 @@ use App\Models\Tenants\{Profile, Setting, About};
         <hr/>
         <div class="w-full p-4 bg-white shadow-sm rounded-lg">
           <div class="flex items-center space-x-4">
-              <div class="w-10 h-10 flex items-center justify-center rounded-full bg-lakasir-primary text-black text-lg font-medium">
+              <div class="w-10 h-10 flex items-center justify-center rounded-full bg-lakasir-primary text-black text-lg font-medium uppercase">
                       {{ $profileInitials }}
               </div>
               <div>
-                  <h3 class="text-xl font-semibold text-black">{{ $userName }}</h3>
+                  <h3 class="text-xl uppercase font-semibold text-black">{{ $userName }}</h3>
               </div>
           </div>
         </div>
@@ -69,13 +69,13 @@ use App\Models\Tenants\{Profile, Setting, About};
           <p class="hidden lg:block text-2xl font-semibold mb-2">{{ __('Current Orders') }}</p>
           <div class="flex gap-x-1"></div>
         </div>
-        <div class="overflow-y-scroll min-h-40 max-h-[35%] overflow-auto" wire:loading.class="opacity-20" wire:target="addCart,reduceCart,deleteCart,addDiscountPricePerItem,addCartUsingScanner">
+        <div class="overflow-y-scroll min-h-60 max-h-[55%] overflow-auto" wire:loading.class="opacity-20" wire:target="addCart,reduceCart,deleteCart,addDiscountPricePerItem,addCartUsingScanner">
           @forelse($cartItems as $item)
             <div class="mb-2 border rounded-lg bg-white dark:border-gray-900 dark:bg-gray-900 px-4 py-2" id="{{ $item->id }}" key="{{ rand() }}">
               <div class="grid items-center space-x-3">
                 <div class="flex justify-between">
-                  <p class="font-semibold"> {{ $item->product->name }}</p>
-                  <p class="font-semibold text-black">{{ $item->price_format_money }}</p>
+                  <p class="font-semibold text-xl"> {{ $item->product->name }}</p>
+                  <p class="font-semibold text-xl text-black">{{ $item->price_format_money }}</p>
                 </div>
               </div>
               <div class="grid grid-cols-2 items-center text-right space-y-2">
