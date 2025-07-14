@@ -143,7 +143,7 @@ use App\Models\Tenants\{Profile, Setting, About};
             </div>
           @empty
             <div class="flex justify-center items-center h-40 border bg-white rounded-lg dark:border-gray-900 dark:bg-gray-900">
-              <x-heroicon-o-x-mark class="text-gray-900 dark:text-white h-10 w-10 hidden lg:block"/>
+              <x-heroicon-o-x-mark class="text-gray-900 dark:text-white h-60 w-10 hidden lg:block"/>
                 <p class="text-xl lg:text-3xl text-gray-600 dark:text-white">{{ __('No item') }}</p>
             </div>
           @endforelse
