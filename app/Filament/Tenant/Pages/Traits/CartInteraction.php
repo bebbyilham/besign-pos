@@ -163,7 +163,5 @@ trait CartInteraction
         $this->addCart($product, [
             'amount' => $stock,
         ]);
-
-        $this->dispatchBrowserEvent('focus-search');
     }
 }
