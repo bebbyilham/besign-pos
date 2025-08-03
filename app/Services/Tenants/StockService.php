@@ -9,7 +9,7 @@ use App\Models\Tenants\Stock;
 
 class StockService
 {
-    private function adjustStockPrepare(Product $product): Stock
+    private function adjustStockPrepare(Product $product): ?Stock
     {
         if (Setting::get('selling_method', env('SELLING_METHOD', 'fifo')) == 'normal') {
             $lastStock = $product
