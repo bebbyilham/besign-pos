@@ -163,10 +163,5 @@ trait CartInteraction
         $this->addCart($product, [
             'amount' => $stock,
         ]);
-
-        // ✅ Reset input + beep
-        \Filament\Support\Facades\Browser::script(
-            "window.dispatchEvent(new CustomEvent('focus-search'))"
-        );
     }
 }
