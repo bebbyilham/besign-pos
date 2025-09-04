@@ -118,6 +118,7 @@ trait HasProductForm
             ->translateLabel()
             ->numeric()
             ->visible(Feature::active(ProductStock::class))
+            ->helperText(__('Untuk stok silahkan input melalui menu Pembelian dan untuk ubah stok melalui menu Stock Opname (tidak bisa input manual di produk)'))
             ->disabled(function ($get) {
                 return $get('is_non_stock') || $get('type') == 'service';
             })
