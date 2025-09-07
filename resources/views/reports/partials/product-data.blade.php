@@ -12,6 +12,7 @@
       <x-table-header-cell>{{ __('Qty') }}</x-table-header-cell>
       <x-table-header-cell style="width: 100px;" class="number">{{ __('Selling') }}</x-table-header-cell>
       <x-table-header-cell style="width: 100px;" class="number">{{ __('Discount') }}</x-table-header-cell>
+      <x-table-header-cell style="width: 100px;" class="number">{{ __('Cost') }}</x-table-header-cell>
       <x-table-header-cell style="width: 100px;" class="number">{{ __('Net Selling') }}</x-table-header-cell>
       <x-table-header-cell style="width: 100px;" class="number">{{ __('Gross Profit') }}</x-table-header-cell>
       <x-table-header-cell style="width: 100px;" class="number">{{ __('Net Profit') }}</x-table-header-cell>
@@ -27,6 +28,7 @@
           <x-table-cell>{{ $report['qty'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['selling'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['discount_price'] }}</x-table-cell>
+          <x-table-cell class="number">{{ $report['cost'] }}</x-table-cell>
           <!-- <td class="number">{{ $report['cost'] }}</td> -->
           <x-table-cell class="number">{{ $report['total_after_discount'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['gross_profit'] }}</x-table-cell>
@@ -51,7 +53,7 @@
         <x-table-header-cell colspan="8" style="text-align: center;">{{ __('Grand Total') }}</x-table-header-cell>
       </x-table-row>
       <x-table-row>
-        <x-table-header-cell>{{ __('Cost') }}</x-table-header-cell>
+        <x-table-header-cell>{{ __('Total Cost') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Item') }}</x-table-header-cell>
