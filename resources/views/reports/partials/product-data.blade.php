@@ -53,7 +53,7 @@
         <x-table-header-cell colspan="8" style="text-align: center;">{{ __('Grand Total') }}</x-table-header-cell>
       </x-table-row>
       <x-table-row>
-        <x-table-header-cell>{{ __('Total Cost') }}</x-table-header-cell>
+        <x-table-header-cell>{{ __('Total Biaya') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Item') }}</x-table-header-cell>
