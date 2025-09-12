@@ -23,30 +23,12 @@ trait HasStockOpnameItemForm
                 ->relationship(name: $product, titleAttribute: 'name')
                 ->searchable(['name', 'barcode', 'sku'])
                 ->live()
-                ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
-                    $product = Product::find($get('product_id'));
-                    if (! $product) {
-                        Notification::make()
-                            ->title(__('Please select the product first'))
-                            ->warning()
-                            ->send();
-                        $set('actual_stock', 0);
-                        $set('missing_stock', 0);
-                        return;
+                ->afterStateUpdated(function (Set $set, ?string $state) {
+                    $product = Product::find($state);
+                    if ($product) {
+                        $set('current_stock', $product->stock);
                     }
-
-                    $actual = max(0, (int) $state);
-                    $current = (int) $product->stock;
-
-                    // hitung selisih (boleh negatif → artinya penambahan stok)
-                    $missing = $current - $actual;
-
-                    $set('actual_stock', $actual);
-                    $set('missing_stock', $missing);
-                })
-                ->numeric()
-                ->minValue(0),
-
+                }),
 
             TextInput::make('current_stock')
                 ->translateLabel()
@@ -55,14 +37,31 @@ trait HasStockOpnameItemForm
 
             Select::make('adjustment_type')
                 ->translateLabel()
+                ->default('manual_input')
+                ->live()
+                ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
+                    if (! $state) {
+                        $set('missing_stock', $get('current_stock'));
+                        return;
+                    }
+                    $product = Product::find($get('product_id'));
+                    if (! $product) {
+                        Notification::make()
+                            ->title(__('Please select the product first'))
+                            ->warning()
+                            ->send();
+                        $set('actual_stock', 0);
+                        return;
+                    }
+
+                    $set('missing_stock', $product->stock - (int) $get('actual_stock'));
+                })
                 ->options([
                     'broken' => __('Broken'),
                     'lost' => __('Lost'),
                     'expired' => __('Expired'),
                     'manual_input' => __('Manual Input'),
-                ])
-                ->required()
-                ->live(),
+                ]),
 
             TextInput::make('actual_stock')
                 ->translateLabel()
@@ -77,22 +76,12 @@ trait HasStockOpnameItemForm
                             ->warning()
                             ->send();
                         $set('actual_stock', 0);
-                        $set('missing_stock', 0);
                         return;
                     }
 
                     $actual = max(0, (int) $state);
                     $current = (int) $product->stock;
-
-                    // hitung selisih
-                    $missing = $current - $actual;
-                    if ($missing < 0) {
-                        // kalau lebih besar dari stok, missing dianggap 0
-                        $missing = 0;
-                    }
-
-                    $set('actual_stock', $actual);
-                    $set('missing_stock', $missing);
+                    $set('missing_stock', $current - $actual);
                 })
                 ->numeric()
                 ->minValue(0),
@@ -100,26 +89,28 @@ trait HasStockOpnameItemForm
             TextInput::make('missing_stock')
                 ->translateLabel()
                 ->readOnly()
-                ->numeric()
-                ->extraAttributes(function (Get $get) {
+                ->numeric(),
+
+            // Field tambahan untuk keterangan perubahan
+            TextInput::make('stock_change')
+                ->label('Perubahan Stok')
+                ->disabled()
+                ->dehydrated(false)
+                ->afterStateHydrated(function (Set $set, Get $get) {
                     $missing = (int) $get('missing_stock');
-
-                    if ($missing > 0) {
-                        // stok berkurang
-                        return ['class' => 'text-red-600 font-bold'];
-                    } elseif ($missing < 0) {
-                        // stok bertambah
-                        return ['class' => 'text-green-600 font-bold'];
+                    if ($missing < 0) {
+                        $set('stock_change', 'Tambah ' . abs($missing) . ' pcs');
+                    } elseif ($missing > 0) {
+                        $set('stock_change', 'Kurang ' . $missing . ' pcs');
+                    } else {
+                        $set('stock_change', 'Tidak ada perubahan');
                     }
-
-                    // stok sama
-                    return ['class' => 'text-gray-600'];
                 }),
 
             FileUpload::make('attachment')
                 ->translateLabel()
-                ->image()
-                ->maxWidth(1024),
+                ->maxWidth(10)
+                ->image(),
         ];
     }
 }
