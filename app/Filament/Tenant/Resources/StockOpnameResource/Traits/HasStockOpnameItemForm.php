@@ -12,7 +12,7 @@ use Filament\Notifications\Notification;
 
 trait HasStockOpnameItemForm
 {
-    public function get($product = 'stockOpnameItems.product'): array
+    public function getStockOpnameItemForm($relation = 'product'): array
     {
         return [
             Select::make('product_id')
@@ -20,52 +20,39 @@ trait HasStockOpnameItemForm
                 ->required()
                 ->native(false)
                 ->placeholder(__('Search...'))
-                ->relationship(name: $product, titleAttribute: 'name')
+                ->relationship(name: $relation, titleAttribute: 'name')
                 ->searchable(['name', 'barcode', 'sku'])
                 ->live()
                 ->afterStateUpdated(function (Set $set, ?string $state) {
                     $product = Product::find($state);
                     if ($product) {
                         $set('current_stock', $product->stock);
+                        // reset stok actual & missing kalau ganti produk
+                        $set('actual_stock', null);
+                        $set('missing_stock', null);
                     }
                 }),
+
             TextInput::make('current_stock')
                 ->translateLabel()
                 ->readOnly()
                 ->numeric(),
+
             Select::make('adjustment_type')
                 ->translateLabel()
-                ->default('broken')
-                ->live()
-                ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
-                    if (! $state) {
-                        $set('missing_stock', $get('current_stock'));
-
-                        return;
-                    }
-                    $product = Product::find($get('product_id'));
-                    if (! $product) {
-                        Notification::make()
-                            ->title(__('Please select the product first'))
-                            ->warning()
-                            ->send();
-                        $set('actual_stock', 0);
-
-                        return;
-                    }
-
-                    $set('missing_stock', $product->stock - $get('actual_stock'));
-                })
                 ->options([
                     'broken' => __('Broken'),
                     'lost' => __('Lost'),
                     'expired' => __('Expired'),
                     'manual_input' => __('Manual Input'),
-                ]),
+                ])
+                ->required()
+                ->live(),
+
             TextInput::make('actual_stock')
                 ->translateLabel()
                 ->required()
-                ->disabled(fn (Get $get) => ! $get('adjustment_type'))
+                ->disabled(fn(Get $get) => ! $get('adjustment_type'))
                 ->live(onBlur: true)
                 ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
                     $product = Product::find($get('product_id'));
@@ -75,21 +62,36 @@ trait HasStockOpnameItemForm
                             ->warning()
                             ->send();
                         $set('actual_stock', 0);
-
+                        $set('missing_stock', 0);
                         return;
                     }
 
-                    $set('missing_stock', $product->stock - $state);
+                    $actual = max(0, (int) $state);
+                    $current = (int) $product->stock;
+
+                    // hitung selisih
+                    $missing = $current - $actual;
+                    if ($missing < 0) {
+                        // kalau lebih besar dari stok, missing dianggap 0
+                        $missing = 0;
+                    }
+
+                    $set('actual_stock', $actual);
+                    $set('missing_stock', $missing);
                 })
-                ->numeric(),
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(fn(Get $get) => $get('current_stock')),
+
             TextInput::make('missing_stock')
                 ->translateLabel()
                 ->readOnly()
                 ->numeric(),
+
             FileUpload::make('attachment')
                 ->translateLabel()
-                ->maxWidth(10)
-                ->image(),
+                ->image()
+                ->maxWidth(1024),
         ];
     }
 }
