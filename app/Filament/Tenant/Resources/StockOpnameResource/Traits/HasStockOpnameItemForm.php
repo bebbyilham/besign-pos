@@ -15,23 +15,30 @@ trait HasStockOpnameItemForm
     public function get($product = 'stockOpnameItems.product'): array
     {
         return [
-            Select::make('product_id')
-                ->translateLabel()
-                ->required()
-                ->native(false)
-                ->placeholder(__('Search...'))
-                ->relationship(name: $product, titleAttribute: 'name')
-                ->searchable(['name', 'barcode', 'sku'])
-                ->live()
-                ->afterStateUpdated(function (Set $set, ?string $state) {
-                    $product = Product::find($state);
-                    if ($product) {
-                        $set('current_stock', $product->stock);
-                        // reset stok actual & missing kalau ganti produk
-                        $set('actual_stock', null);
-                        $set('missing_stock', null);
-                    }
-                }),
+            ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
+                $product = Product::find($get('product_id'));
+                if (! $product) {
+                    Notification::make()
+                        ->title(__('Please select the product first'))
+                        ->warning()
+                        ->send();
+                    $set('actual_stock', 0);
+                    $set('missing_stock', 0);
+                    return;
+                }
+
+                $actual = max(0, (int) $state);
+                $current = (int) $product->stock;
+
+                // hitung selisih (boleh negatif → artinya penambahan stok)
+                $missing = $current - $actual;
+
+                $set('actual_stock', $actual);
+                $set('missing_stock', $missing);
+            })
+            ->numeric()
+            ->minValue(0),
+
 
             TextInput::make('current_stock')
                 ->translateLabel()
