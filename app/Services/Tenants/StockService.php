@@ -55,11 +55,20 @@ class StockService
             $lastStock->stock += $qty;
             $lastStock->save();
         } else {
-            // fallback: update langsung ke product
+            // Buat stok baru kalau belum ada
+            $stock = new Stock();
+            $stock->product()->associate($product);
+            $stock->date = now();
+            $stock->init_stock = $qty;
+            $stock->stock = $qty;
+            $stock->save();
+
+            // update juga ke field total stock di product
             $product->stock += $qty;
             $product->save();
         }
     }
+
 
     /**
      * Kurangi stok produk.
