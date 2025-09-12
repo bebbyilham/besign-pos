@@ -12,7 +12,7 @@ use Filament\Notifications\Notification;
 
 trait HasStockOpnameItemForm
 {
-    public function getStockOpnameItemForm($relation = 'product'): array
+    public function get($product = 'stockOpnameItems.product'): array
     {
         return [
             Select::make('product_id')
