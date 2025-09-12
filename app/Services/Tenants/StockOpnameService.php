@@ -19,9 +19,9 @@ class StockOpnameService
 
     private StockService $stockService;
 
-    public function __construct(StockService $stockService)
+    public function __construct()
     {
-        $this->stockService = $stockService;
+        $this->stockService = new StockService;
     }
 
     public function create(array $data): StockOpname
