@@ -27,6 +27,9 @@ trait HasStockOpnameItemForm
                     $product = Product::find($state);
                     if ($product) {
                         $set('current_stock', $product->stock);
+                        // reset nilai saat ganti produk
+                        $set('actual_stock', null);
+                        $set('missing_stock', null);
                     }
                 }),
 
@@ -37,31 +40,14 @@ trait HasStockOpnameItemForm
 
             Select::make('adjustment_type')
                 ->translateLabel()
-                ->default('manual_input')
-                ->live()
-                ->afterStateUpdated(function (Set $set, Get $get, ?string $state) {
-                    if (! $state) {
-                        $set('missing_stock', $get('current_stock'));
-                        return;
-                    }
-                    $product = Product::find($get('product_id'));
-                    if (! $product) {
-                        Notification::make()
-                            ->title(__('Please select the product first'))
-                            ->warning()
-                            ->send();
-                        $set('actual_stock', 0);
-                        return;
-                    }
-
-                    $set('missing_stock', $product->stock - (int) $get('actual_stock'));
-                })
                 ->options([
-                    'broken' => __('Broken'),
-                    'lost' => __('Lost'),
-                    'expired' => __('Expired'),
+                    'broken'       => __('Broken'),
+                    'lost'         => __('Lost'),
+                    'expired'      => __('Expired'),
                     'manual_input' => __('Manual Input'),
-                ]),
+                ])
+                ->required()
+                ->live(),
 
             TextInput::make('actual_stock')
                 ->translateLabel()
@@ -76,12 +62,18 @@ trait HasStockOpnameItemForm
                             ->warning()
                             ->send();
                         $set('actual_stock', 0);
+                        $set('missing_stock', 0);
                         return;
                     }
 
-                    $actual = max(0, (int) $state);
+                    $actual  = max(0, (int) $state);
                     $current = (int) $product->stock;
-                    $set('missing_stock', $current - $actual);
+
+                    // hitung selisih: bisa negatif (tambahan stok), bisa positif (pengurangan)
+                    $missing = $current - $actual;
+
+                    $set('actual_stock', $actual);
+                    $set('missing_stock', $missing);
                 })
                 ->numeric()
                 ->minValue(0),
@@ -91,26 +83,10 @@ trait HasStockOpnameItemForm
                 ->readOnly()
                 ->numeric(),
 
-            // Field tambahan untuk keterangan perubahan
-            TextInput::make('stock_change')
-                ->label('Perubahan Stok')
-                ->disabled()
-                ->dehydrated(false)
-                ->afterStateHydrated(function (Set $set, Get $get) {
-                    $missing = (int) $get('missing_stock');
-                    if ($missing < 0) {
-                        $set('stock_change', 'Tambah ' . abs($missing) . ' pcs');
-                    } elseif ($missing > 0) {
-                        $set('stock_change', 'Kurang ' . $missing . ' pcs');
-                    } else {
-                        $set('stock_change', 'Tidak ada perubahan');
-                    }
-                }),
-
             FileUpload::make('attachment')
                 ->translateLabel()
-                ->maxWidth(10)
-                ->image(),
+                ->image()
+                ->maxWidth(1024),
         ];
     }
 }
