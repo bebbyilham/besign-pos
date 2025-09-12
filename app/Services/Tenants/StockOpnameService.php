@@ -79,12 +79,16 @@ class StockOpnameService
                 }
 
                 foreach ($so->stockOpnameItems as $soItem) {
-                    if ($soItem->missing_stock < 0) {
-                        $this->stockService->addStock($soItem->product, abs($soItem->missing_stock));
-                    } elseif ($soItem->missing_stock > 0) {
-                        $this->stockService->reduceStock($soItem->product, $soItem->missing_stock);
+                    if ($soItem->missing_stock > 0) {
+                        // stok opname lebih besar → tambahkan
+                        $this->stockService->addStock($soItem->product, $soItem->missing_stock);
+                    } elseif ($soItem->missing_stock < 0) {
+                        // stok opname lebih kecil → kurangi
+                        $this->stockService->reduceStock($soItem->product, abs($soItem->missing_stock));
                     }
                 }
+
+
 
                 RecalculateEvent::dispatch(
                     Product::whereIn('id', $so->stockOpnameItems->pluck('product_id')->unique())->get(),
