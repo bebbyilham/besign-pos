@@ -20,7 +20,7 @@ trait HasStockOpnameItemForm
                 ->required()
                 ->native(false)
                 ->placeholder(__('Search...'))
-                ->relationship(name: $relation, titleAttribute: 'name')
+                ->relationship(name: $product, titleAttribute: 'name')
                 ->searchable(['name', 'barcode', 'sku'])
                 ->live()
                 ->afterStateUpdated(function (Set $set, ?string $state) {
