@@ -80,13 +80,26 @@ trait HasStockOpnameItemForm
                     $set('missing_stock', $missing);
                 })
                 ->numeric()
-                ->minValue(0)
-                ->maxValue(fn(Get $get) => $get('current_stock')),
+                ->minValue(0),
 
             TextInput::make('missing_stock')
                 ->translateLabel()
                 ->readOnly()
-                ->numeric(),
+                ->numeric()
+                ->extraAttributes(function (Get $get) {
+                    $missing = (int) $get('missing_stock');
+
+                    if ($missing > 0) {
+                        // stok berkurang
+                        return ['class' => 'text-red-600 font-bold'];
+                    } elseif ($missing < 0) {
+                        // stok bertambah
+                        return ['class' => 'text-green-600 font-bold'];
+                    }
+
+                    // stok sama
+                    return ['class' => 'text-gray-600'];
+                }),
 
             FileUpload::make('attachment')
                 ->translateLabel()
