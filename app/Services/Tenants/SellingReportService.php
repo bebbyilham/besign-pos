@@ -16,9 +16,8 @@ class SellingReportService
     {
         $timezone = 'Asia/Jakarta';
         $about = About::first();
-        $startDate = Carbon::parse($data['start_date'], $timezone)->setTimezone('UTC');
-        $endDate = Carbon::parse($data['end_date'], $timezone)->addDay()->setTimezone('UTC');
-
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate   = Carbon::parse($data['end_date'])->endOfDay();
         $sellings = Selling::query()
             ->select()
             ->with(
