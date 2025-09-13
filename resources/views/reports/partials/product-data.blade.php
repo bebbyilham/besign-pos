@@ -71,7 +71,6 @@
         <x-table-header-cell>{{ __('Total Biaya') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Penjualan') }}</x-table-header-cell>
-        <x-table-header-cell>{{ __('Discount per Item') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Penjualan Setelah Discount') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Keuntungan Kotor') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Keuntungan Bersih Sebelum Diskon Penjualan') }}</x-table-header-cell>
