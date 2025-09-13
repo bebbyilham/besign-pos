@@ -38,39 +38,48 @@ class StockOpnameItemsRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('product.name')
                     ->translateLabel(),
+
                 Tables\Columns\SelectColumn::make('adjustment_type')
                     ->options([
-                        'broken' => __('Broken'),
-                        'lost' => __('Lost'),
-                        'expired' => __('Expired'),
+                        'broken'       => __('Broken'),
+                        'lost'         => __('Lost'),
+                        'expired'      => __('Expired'),
                         'manual_input' => __('Manual Input'),
-                        'match' => __('Match'),
+                        'match'        => __('Match'),
                     ])
                     ->translateLabel()
-                    ->disabled(fn () => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
+                    ->disabled(fn() => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
                     ->afterStateUpdated(function (StockOpnameItem $soi, $state) {
-                        $adjusment_stock = $soi->current_stock - $soi->actual_stock;
+                        $adjustment_stock = $soi->current_stock - $soi->actual_stock;
 
                         $this->soIService->update($soi, [
-                            'missing_stock' => $adjusment_stock,
+                            'missing_stock'   => $adjustment_stock,
                             'adjustment_type' => $state,
                         ]);
                     }),
+
                 Tables\Columns\TextColumn::make('current_stock')
                     ->translateLabel(),
+
                 Tables\Columns\TextInputColumn::make('actual_stock')
                     ->type('number')
                     ->translateLabel()
-                    ->disabled(fn () => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
+                    ->disabled(fn() => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
                     ->afterStateUpdated(function (StockOpnameItem $soi, $state) {
-                        $adjusment_stock = $soi->current_stock - $state;
-                        $this->soIService->update($soi, [
-                            'actual_stock' => $state,
-                            'missing_stock' => $adjusment_stock,
+                        $actual  = max(0, (int) $state);
+                        $current = (int) $soi->current_stock;
+
+                        $missing = $actual - $current;
+
+                        $this->getService()->update($soi, [
+                            'actual_stock'  => $actual,
+                            'missing_stock' => $missing,
                         ]);
                     }),
+
                 Tables\Columns\TextColumn::make('missing_stock')
                     ->translateLabel(),
+
                 Tables\Columns\ImageColumn::make('attachment')
                     ->translateLabel(),
             ])
@@ -82,6 +91,7 @@ class StockOpnameItemsRelationManager extends RelationManager
                 Tables\Actions\DeleteAction::make(),
             ]);
     }
+
 
     public function isReadOnly(): bool
     {

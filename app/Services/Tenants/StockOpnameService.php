@@ -9,6 +9,7 @@ use App\Models\Tenants\StockOpname;
 use App\Models\Tenants\StockOpnameItem;
 use App\Services\Tenants\Traits\HasNumber;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
 
 class StockOpnameService
 {
@@ -25,52 +26,80 @@ class StockOpnameService
 
     public function create(array $data): StockOpname
     {
-        $stockOpname = new StockOpname();
-        $stockOpname->fill($data);
-        $stockOpname->save();
+        return DB::transaction(function () use ($data) {
+            $stockOpname = new StockOpname();
+            $stockOpname->fill($data);
+            $stockOpname->save();
 
-        return $stockOpname;
+            return $stockOpname;
+        });
     }
 
-    public function update(StockOpname $stockOpname, $data): StockOpname
+    public function update(StockOpname $stockOpname, array $data): StockOpname
     {
-        $stockOpname->fill($data);
-        $stockOpname->save();
+        return DB::transaction(function () use ($stockOpname, $data) {
+            $stockOpname->fill($data);
+            $stockOpname->save();
 
-        return $stockOpname;
+            return $stockOpname;
+        });
     }
 
     public function delete(StockOpname $stockOpname): void
     {
-        $stockOpname->stockOpnameItems->each(function (StockOpnameItem $sOItem) {
-            $sOItem->product->stock = $sOItem->product->stock + $sOItem->actual_stock;
-            $sOItem->product->save();
+        DB::transaction(function () use ($stockOpname) {
+            // rollback stok hanya jika opname sudah disetujui
+            if ($stockOpname->status === StockOpnameStatus::approved) {
+                $stockOpname->stockOpnameItems->each(function (StockOpnameItem $sOItem) {
+                    // kembalikan stok ke nilai sebelum opname
+                    $sOItem->product->stock += $sOItem->actual_stock;
+                    $sOItem->product->save();
+                });
+            }
+
+            $stockOpname->delete();
         });
-        $stockOpname->delete();
     }
 
-    public function updateStatus(StockOpname $so, $status)
+    public function updateStatus(StockOpname $so, string $status): bool
     {
-        $so->status = $status;
-        if ($status == StockOpnameStatus::approved) {
-            $so->approved_at = now();
-            if ($so->stockOpnameItems->isEmpty()) {
-                Notification::make()
-                    ->title(__('Stock Opname Item is required'))
-                    ->warning()
-                    ->send();
+        return DB::transaction(function () use ($so, $status) {
+            $so->status = $status;
 
-                return;
-            }
-            foreach ($so->stockOpnameItems as $soItem) {
-                if ($soItem->missing_stock < 0) {
-                    $this->stockService->addStock($soItem->product, $soItem->missing_stock * -1);
-                } else {
-                    $this->stockService->reduceStock($soItem->product, $soItem->missing_stock);
+            if ($status === StockOpnameStatus::approved) {
+                $so->approved_at = now();
+
+                if ($so->stockOpnameItems->isEmpty()) {
+                    Notification::make()
+                        ->title(__('Stock Opname Item is required'))
+                        ->warning()
+                        ->send();
+
+                    return false; // gagal update status
                 }
+
+                foreach ($so->stockOpnameItems as $soItem) {
+                    if ($soItem->missing_stock > 0) {
+                        // aktual lebih banyak → tambah stok
+                        $this->stockService->addStock($soItem->product, $soItem->missing_stock);
+                    } elseif ($soItem->missing_stock < 0) {
+                        // aktual lebih sedikit → kurangi stok
+                        $this->stockService->reduceStock($soItem->product, abs($soItem->missing_stock));
+                    }
+                }
+
+
+
+
+
+                RecalculateEvent::dispatch(
+                    Product::whereIn('id', $so->stockOpnameItems->pluck('product_id')->unique())->get(),
+                    []
+                );
             }
-            RecalculateEvent::dispatch(Product::whereIn('id', $so->stockOpnameItems->pluck('product_id'))->get(), []);
-        }
-        $so->save();
+
+            $so->save();
+            return true;
+        });
     }
 }
