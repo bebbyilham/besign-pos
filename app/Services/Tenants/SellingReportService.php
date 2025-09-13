@@ -36,8 +36,8 @@ class SellingReportService
             'shop_location' => $about?->shop_location,
             'business_type' => $about?->business_type,
             'owner_name' => $about?->owner_name,
-            'start_date' => $startDate->setTimezone($timezone)->format('d F Y'),
-            'end_date' => $endDate->subDay()->setTimezone($timezone)->format('d F Y'),
+            'start_date' => $startDate->copy()->setTimezone($timezone)->format('d F Y'),
+            'end_date'   => $endDate->copy()->setTimezone($timezone)->format('d F Y'),
         ];
         $reports = [];
 
