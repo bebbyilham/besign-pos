@@ -13,12 +13,10 @@ class ProductReportService
     public function generate(array $data)
     {
         $profile   = Profile::get();
-        $timezone  = $profile->timezone ?: config('app.timezone', 'Asia/Jakarta');
-        $about     = About::first();
-
-        $startDate = Carbon::parse($data['start_date'], $timezone)->startOfDay()->setTimezone('UTC');
-        $endDate   = Carbon::parse($data['end_date'], $timezone)->endOfDay()->setTimezone('UTC');
-
+        $timezone = 'Asia/Jakarta';
+        $about = About::first();
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate   = Carbon::parse($data['end_date'])->endOfDay();
         $rows = DB::table('products as p')
             ->select([
                 'p.id',
