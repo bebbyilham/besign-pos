@@ -13,35 +13,6 @@ class StockService
     const SELLING_FIFO   = 'fifo';
     const SELLING_LIFO   = 'lifo';
 
-    /**
-     * Ambil stok sesuai metode penjualan (FIFO/LIFO/Normal).
-     * 🔑 Perubahan: tidak lagi pakai where('stock', '>', 0)
-     * supaya stok yang sudah ada meskipun 0 tetap bisa dipakai untuk update.
-     */
-    // private function adjustStockPrepare(Product $product): ?Stock
-    // {
-    //     $method = Setting::get('selling_method', env('SELLING_METHOD', self::SELLING_FIFO));
-
-    //     if ($method === self::SELLING_NORMAL) {
-    //         return $product->stocks()
-    //             ->orderBy('date', 'asc')
-    //             ->first();
-    //     }
-
-    //     if ($method === self::SELLING_FIFO) {
-    //         return $product->stocks()
-    //             ->orderBy('date', 'asc') // stok lama keluar dulu
-    //             ->first();
-    //     }
-
-    //     if ($method === self::SELLING_LIFO) {
-    //         return $product->stocks()
-    //             ->orderBy('date', 'desc') // stok baru keluar dulu
-    //             ->first();
-    //     }
-
-    //     return $product->stockLatestCalculateIn()->first();
-    // }
 
     private function adjustStockPrepare(Product $product): ?Stock
     {
@@ -57,6 +28,33 @@ class StockService
 
         return $lastStock;
     }
+
+    private function adjustStockPrepareOpname(Product $product): ?Stock
+    {
+        $method = Setting::get('selling_method', env('SELLING_METHOD', self::SELLING_FIFO));
+
+        if ($method === self::SELLING_NORMAL) {
+            return $product->stocks()
+                ->orderBy('date', 'asc')
+                ->first();
+        }
+
+        if ($method === self::SELLING_FIFO) {
+            return $product->stocks()
+                ->orderBy('date', 'asc') // stok lama keluar dulu
+                ->first();
+        }
+
+        if ($method === self::SELLING_LIFO) {
+            return $product->stocks()
+                ->orderBy('date', 'desc') // stok baru keluar dulu
+                ->first();
+        }
+
+        return $product->stockLatestCalculateIn()->first();
+    }
+
+
 
     /**
      * Tambah stok produk.
@@ -82,13 +80,29 @@ class StockService
         // 🔥 sinkronkan total ke product->stock
         $product->stock = $product->stocks()->sum('stock');
         $product->save();
+    }
 
-        \Log::info('StockService:addStock', [
-            'product_id'   => $product->id,
-            'added_qty'    => $qty,
-            'total_stocks' => $product->stocks()->sum('stock'),
-            'product_stock_field' => $product->stock,
-        ]);
+    public function addStockOpname(Product $product, int $qty): void
+    {
+        $lastStock = $this->adjustStockPrepareOpname($product);
+
+        if ($lastStock) {
+            // kalau sudah ada stok meski 0 → update record lama
+            $lastStock->stock += $qty;
+            $lastStock->save();
+        } else {
+            // kalau benar-benar belum ada record stok → buat baru
+            $stock = new Stock();
+            $stock->product()->associate($product);
+            $stock->date = now();
+            $stock->init_stock = $qty;
+            $stock->stock = $qty;
+            $stock->save();
+        }
+
+        // 🔥 sinkronkan total ke product->stock
+        $product->stock = $product->stocks()->sum('stock');
+        $product->save();
     }
 
     /**
@@ -116,16 +130,6 @@ class StockService
 
             $lastStock->save();
         }
-
-        // 🔥 update total stok product dari tabel stocks
-        $product->stock = $product->stocks()->sum('stock');
-        $product->save();
-
-        \Log::info('StockService:reduceStock', [
-            'product_id'   => $product->id,
-            'product_stock_field' => $product->stock,
-            'total_stocks' => $product->stocks()->sum('stock'),
-        ]);
     }
 
     /**
