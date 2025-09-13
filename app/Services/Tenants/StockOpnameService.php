@@ -80,13 +80,14 @@ class StockOpnameService
 
                 foreach ($so->stockOpnameItems as $soItem) {
                     if ($soItem->missing_stock > 0) {
-                        // current > actual → stok harus dikurangi
-                        $this->stockService->reduceStock($soItem->product, $soItem->missing_stock);
+                        // aktual lebih banyak → tambah stok
+                        $this->stockService->addStock($soItem->product, $soItem->missing_stock);
                     } elseif ($soItem->missing_stock < 0) {
-                        // current < actual → stok harus ditambah
-                        $this->stockService->addStock($soItem->product, abs($soItem->missing_stock));
+                        // aktual lebih sedikit → kurangi stok
+                        $this->stockService->reduceStock($soItem->product, abs($soItem->missing_stock));
                     }
                 }
+
 
 
 

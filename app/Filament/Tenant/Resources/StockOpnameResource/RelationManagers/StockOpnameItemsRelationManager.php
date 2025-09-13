@@ -66,15 +66,14 @@ class StockOpnameItemsRelationManager extends RelationManager
                     ->translateLabel()
                     ->disabled(fn() => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
                     ->afterStateUpdated(function (StockOpnameItem $soi, $state) {
-                        $actual = max(0, (int) $state);
+                        $actual  = max(0, (int) $state);
                         $current = (int) $soi->current_stock;
 
-                        // hitung selisih (boleh negatif)
-                        $adjustment_stock = $current - $actual;
+                        $missing = $actual - $current;
 
-                        $this->soIService->update($soi, [
+                        $this->getService()->update($soi, [
                             'actual_stock'  => $actual,
-                            'missing_stock' => $adjustment_stock,
+                            'missing_stock' => $missing,
                         ]);
                     }),
 
