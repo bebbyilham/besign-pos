@@ -15,8 +15,6 @@ class StockService
 
     /**
      * Ambil stok sesuai metode penjualan (FIFO/LIFO/Normal).
-     * 🔑 Perubahan: tidak lagi pakai where('stock', '>', 0)
-     * supaya stok yang sudah ada meskipun 0 tetap bisa dipakai untuk update.
      */
     private function adjustStockPrepare(Product $product): ?Stock
     {
@@ -24,18 +22,21 @@ class StockService
 
         if ($method === self::SELLING_NORMAL) {
             return $product->stocks()
+                ->where('stock', '>', 0)
                 ->orderBy('date', 'asc')
                 ->first();
         }
 
         if ($method === self::SELLING_FIFO) {
             return $product->stocks()
+                ->where('stock', '>', 0)
                 ->orderBy('date', 'asc') // stok lama keluar dulu
                 ->first();
         }
 
         if ($method === self::SELLING_LIFO) {
             return $product->stocks()
+                ->where('stock', '>', 0)
                 ->orderBy('date', 'desc') // stok baru keluar dulu
                 ->first();
         }
@@ -51,30 +52,23 @@ class StockService
         $lastStock = $this->adjustStockPrepare($product);
 
         if ($lastStock) {
-            // kalau sudah ada stok meski 0 → update record lama
             $lastStock->stock += $qty;
             $lastStock->save();
         } else {
-            // kalau benar-benar belum ada record stok → buat baru
+            // Buat stok baru kalau belum ada
             $stock = new Stock();
             $stock->product()->associate($product);
             $stock->date = now();
             $stock->init_stock = $qty;
             $stock->stock = $qty;
             $stock->save();
+
+            // update juga ke field total stock di product
+            $product->stock += $qty;
+            $product->save();
         }
-
-        // 🔥 sinkronkan total ke product->stock
-        $product->stock = $product->stocks()->sum('stock');
-        $product->save();
-
-        \Log::info('StockService:addStock', [
-            'product_id'   => $product->id,
-            'added_qty'    => $qty,
-            'total_stocks' => $product->stocks()->sum('stock'),
-            'product_stock_field' => $product->stock,
-        ]);
     }
+
 
     /**
      * Kurangi stok produk.
@@ -86,7 +80,7 @@ class StockService
 
             if (!$lastStock) {
                 // fallback langsung kurangi product
-                $product->stock = max(0, $product->stock - $qty);
+                $product->stock -= $qty;
                 $product->save();
                 break;
             }
@@ -101,16 +95,6 @@ class StockService
 
             $lastStock->save();
         }
-
-        // 🔥 update total stok product dari tabel stocks
-        $product->stock = $product->stocks()->sum('stock');
-        $product->save();
-
-        \Log::info('StockService:reduceStock', [
-            'product_id'   => $product->id,
-            'product_stock_field' => $product->stock,
-            'total_stocks' => $product->stocks()->sum('stock'),
-        ]);
     }
 
     /**
@@ -132,10 +116,6 @@ class StockService
 
         $stock->save();
 
-        // sinkron ke field product->stock
-        $stock->product->stock = $stock->product->stocks()->sum('stock');
-        $stock->product->save();
-
         return $stock;
     }
 
@@ -155,9 +135,5 @@ class StockService
         }
 
         $stock->save();
-
-        // sinkron ke field product->stock
-        $stock->product->stock = $stock->product->stocks()->sum('stock');
-        $stock->product->save();
     }
 }
