@@ -54,21 +54,17 @@ class StockService
         if ($lastStock) {
             $lastStock->stock += $qty;
             $lastStock->save();
-
-            $product->stock += $qty;
-            $product->save();
         } else {
-            // Buat stok baru kalau belum ada
-            $stock = new Stock();
-            $stock->product()->associate($product);
-            $stock->date = now();
-            $stock->init_stock = $qty;
-            $stock->stock = $qty;
-            $stock->save();
-
-            $product->stock += $qty;
-            $product->save();
+            $lastStock = new Stock();
+            $lastStock->product()->associate($product);
+            $lastStock->date = now();
+            $lastStock->init_stock = $qty;
+            $lastStock->stock = $qty;
+            $lastStock->save();
         }
+
+        $product->stock = $product->stocks()->sum('stock');
+        $product->save();
     }
 
 
@@ -82,9 +78,6 @@ class StockService
             $lastStock = $this->adjustStockPrepare($product);
 
             if (!$lastStock) {
-                // fallback langsung kurangi product
-                $product->stock -= $qty;
-                $product->save();
                 break;
             }
 
@@ -98,6 +91,9 @@ class StockService
 
             $lastStock->save();
         }
+
+        $product->stock = $product->stocks()->sum('stock');
+        $product->save();
     }
 
     /**
