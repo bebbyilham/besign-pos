@@ -55,19 +55,26 @@ class StockService
             $lastStock->stock += $qty;
             $lastStock->save();
         } else {
-            $lastStock = new Stock();
-            $lastStock->product()->associate($product);
-            $lastStock->date = now();
-            $lastStock->init_stock = $qty;
-            $lastStock->stock = $qty;
-            $lastStock->save();
+            // Buat stok baru kalau belum ada
+            $stock = new Stock();
+            $stock->product()->associate($product);
+            $stock->date = now();
+            $stock->init_stock = $qty;
+            $stock->stock = $qty;
+            $stock->save();
         }
 
+        // 🔥 selalu update total stock di product dari tabel stocks
         $product->stock = $product->stocks()->sum('stock');
         $product->save();
+
+        \Log::info('StockService:addStock', [
+            'product_id'   => $product->id,
+            'added_qty'    => $qty,
+            'total_stocks' => $product->stocks()->sum('stock'),
+            'product_stock_field' => $product->stock,
+        ]);
     }
-
-
 
     /**
      * Kurangi stok produk.
@@ -78,6 +85,9 @@ class StockService
             $lastStock = $this->adjustStockPrepare($product);
 
             if (!$lastStock) {
+                // fallback langsung kurangi product
+                $product->stock = max(0, $product->stock - $qty);
+                $product->save();
                 break;
             }
 
@@ -92,8 +102,15 @@ class StockService
             $lastStock->save();
         }
 
+        // 🔥 update total stok product dari tabel stocks
         $product->stock = $product->stocks()->sum('stock');
         $product->save();
+
+        \Log::info('StockService:reduceStock', [
+            'product_id'   => $product->id,
+            'product_stock_field' => $product->stock,
+            'total_stocks' => $product->stocks()->sum('stock'),
+        ]);
     }
 
     /**
@@ -115,6 +132,10 @@ class StockService
 
         $stock->save();
 
+        // sinkron ke field product->stock
+        $stock->product->stock = $stock->product->stocks()->sum('stock');
+        $stock->product->save();
+
         return $stock;
     }
 
@@ -134,5 +155,9 @@ class StockService
         }
 
         $stock->save();
+
+        // sinkron ke field product->stock
+        $stock->product->stock = $stock->product->stocks()->sum('stock');
+        $stock->product->save();
     }
 }
