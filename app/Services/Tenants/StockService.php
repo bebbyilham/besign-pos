@@ -54,6 +54,9 @@ class StockService
         if ($lastStock) {
             $lastStock->stock += $qty;
             $lastStock->save();
+
+            $product->stock += $qty;
+            $product->save();
         } else {
             // Buat stok baru kalau belum ada
             $stock = new Stock();
@@ -63,11 +66,11 @@ class StockService
             $stock->stock = $qty;
             $stock->save();
 
-            // update juga ke field total stock di product
             $product->stock += $qty;
             $product->save();
         }
     }
+
 
 
     /**
