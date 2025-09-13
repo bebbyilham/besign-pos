@@ -48,7 +48,7 @@ class StockService
         if (Setting::get('selling_method', env('SELLING_METHOD', 'fifo')) == 'normal') {
             $lastStock = $product
                 ->stocks()
-                // ->where('stock', '>', 0)
+                ->where('stock', '>', 0)
                 ->orderBy('date', 'asc')
                 ->first();
         } else {
@@ -57,7 +57,6 @@ class StockService
 
         return $lastStock;
     }
-
 
     /**
      * Tambah stok produk.
