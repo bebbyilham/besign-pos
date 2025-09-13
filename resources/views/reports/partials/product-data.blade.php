@@ -83,7 +83,6 @@
         <x-table-cell class="number">{{ $footer['total_cost'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_gross'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_discount'] }}</x-table-cell>
-        <x-table-cell class="number">{{ $footer['total_discount_per_item'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_net'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_gross_profit'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_net_profit_before_discount_selling'] }}</x-table-cell>
