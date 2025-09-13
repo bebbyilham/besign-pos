@@ -74,7 +74,7 @@ class SellingReportService
                 $reports[] = [
                     'code' => $selling->code,
                     'sku' => $product->sku ?? '',
-                    'name' => $detail->product->name,
+                    'name' => $detail->product->name ?? '',
                     'selling_price' => $this->formatCurrency($detail->price / $detail->qty),
                     'selling' => $this->formatCurrency($detail->price - ($detail->discount_price ?? 0)),
                     'discount_price' => $this->formatCurrency($detail->discount_price ?? 0),
