@@ -19,7 +19,6 @@ class ProductReportService
         $startDate = Carbon::parse($data['start_date'], $timezone)->startOfDay()->setTimezone('UTC');
         $endDate   = Carbon::parse($data['end_date'], $timezone)->endOfDay()->setTimezone('UTC');
 
-        // === Query utama pakai DB::raw subquery ===
         $rows = DB::table('products as p')
             ->select([
                 'p.id',
@@ -33,11 +32,11 @@ class ProductReportService
                         COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
                         + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
                     ) as stok_akhir"),
-                // <-- TAMBAHAN: qty terjual selama periode
                 DB::raw("COALESCE(op.total_out,0) as qty"),
                 DB::raw("COALESCE(op.total_price,0) as penjualan_bruto"),
                 DB::raw("COALESCE(op.total_cost,0) as total_cost"),
                 DB::raw("COALESCE(op.total_discount,0) as total_diskon"),
+                DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_discount,0)) as total_after_discount"),
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0)) as laba_kotor"),
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) as laba_bersih"),
                 DB::raw("(
@@ -47,6 +46,7 @@ class ProductReportService
                 ) * p.initial_price
             ) as saldo_akhir")
             ])
+            // join subquery tetap sama seperti sebelumnya ...
             ->leftJoin(DB::raw("(SELECT product_id, actual_stock
             FROM (
               SELECT product_id, actual_stock, created_at,
@@ -94,7 +94,6 @@ class ProductReportService
         ) op"), 'op.product_id', '=', 'p.id')
             ->get();
 
-        // === Mapping ke reports & footer ===
         $reports = [];
         $footer = [
             'total_cost' => 0,
@@ -118,31 +117,29 @@ class ProductReportService
                 'beginning_stock' => (int) $row->stok_awal,
                 'mutation' => (int) $row->mutasi,
                 'ending_stock' => (int) $row->stok_akhir,
-                // <-- TAMBAHAN: qty terjual di periode
                 'qty' => (int) $row->qty,
                 'selling' => $this->formatCurrency($row->penjualan_bruto),
                 'discount_price' => $this->formatCurrency($row->total_diskon),
                 'cost' => $this->formatCurrency($row->total_cost),
+                // <-- Tambahan total_after_discount
+                'total_after_discount' => $this->formatCurrency($row->total_after_discount),
                 'gross_profit' => $this->formatCurrency($row->laba_kotor),
                 'net_profit' => $this->formatCurrency($row->laba_bersih),
                 'ending_stock_balance' => $this->formatCurrency($row->saldo_akhir),
             ];
 
-            // akumulasi footer (perbaikan: total_qty sekarang jumlah terjual di periode)
             $footer['total_cost'] += $row->total_cost;
             $footer['total_gross'] += $row->penjualan_bruto;
-            $footer['total_net'] += $row->penjualan_bruto - $row->total_diskon;
+            $footer['total_net'] += $row->total_after_discount;
             $footer['total_discount'] += $row->total_diskon;
             $footer['total_gross_profit'] += $row->laba_kotor;
             $footer['total_net_profit_before_discount_selling'] += $row->laba_kotor;
             $footer['total_net_profit_after_discount_selling'] += $row->laba_bersih;
-            // <- ganti: jumlah sku terjual selama periode
             $footer['total_qty'] += (int) $row->qty;
             $footer['total_ending_stock'] += $row->stok_akhir;
             $footer['total_ending_stock_balance'] += $row->saldo_akhir;
         }
 
-        // format angka jadi currency
         foreach (['total_cost', 'total_gross', 'total_net', 'total_discount', 'total_gross_profit', 'total_net_profit_before_discount_selling', 'total_net_profit_after_discount_selling', 'total_ending_stock_balance'] as $key) {
             $footer[$key] = $this->formatCurrency($footer[$key]);
         }
@@ -160,6 +157,7 @@ class ProductReportService
             ],
         ];
     }
+
 
 
     private function formatCurrency($value)
