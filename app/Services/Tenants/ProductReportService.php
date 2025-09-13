@@ -143,16 +143,25 @@ class ProductReportService
             $reports[] = [
                 'sku' => $product->sku,
                 'name' => $product->name,
+                'initial_price' => $this->formatCurrency((float) $product->initial_price),
+                'selling_price' => $this->formatCurrency((float) $product->selling_price),
+
+                // Penjualan
                 'qty' => $totalQtyPerSelling,
                 'selling' => $this->formatCurrency($totalBeforeDiscountPerSelling),
                 'discount_price' => $this->formatCurrency($totalDiscountPerItem),
                 'cost' => $this->formatCurrency($totalCostPerSelling),
                 'total_after_discount' => $this->formatCurrency($totalAfterDiscountPerSelling),
+
+                // Laba
                 'gross_profit' => $this->formatCurrency($totalGrossProfitPerSelling),
                 'net_profit' => $this->formatCurrency($totalNetProfitPerSelling),
+
+                // Stok akhir
                 'ending_stock' => $stokAkhir,
                 'ending_stock_balance' => $this->formatCurrency($saldoAkhir),
             ];
+
 
             // --- Akumulasi footer ---
             $footer['total_cost'] += $totalCostPerSelling;
