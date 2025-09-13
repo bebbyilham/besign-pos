@@ -15,6 +15,8 @@ class StockService
 
     /**
      * Ambil stok sesuai metode penjualan (FIFO/LIFO/Normal).
+     * 🔑 Perubahan: tidak lagi pakai where('stock', '>', 0)
+     * supaya stok yang sudah ada meskipun 0 tetap bisa dipakai untuk update.
      */
     private function adjustStockPrepare(Product $product): ?Stock
     {
@@ -22,21 +24,18 @@ class StockService
 
         if ($method === self::SELLING_NORMAL) {
             return $product->stocks()
-                ->where('stock', '>', 0)
                 ->orderBy('date', 'asc')
                 ->first();
         }
 
         if ($method === self::SELLING_FIFO) {
             return $product->stocks()
-                ->where('stock', '>', 0)
                 ->orderBy('date', 'asc') // stok lama keluar dulu
                 ->first();
         }
 
         if ($method === self::SELLING_LIFO) {
             return $product->stocks()
-                ->where('stock', '>', 0)
                 ->orderBy('date', 'desc') // stok baru keluar dulu
                 ->first();
         }
@@ -52,10 +51,11 @@ class StockService
         $lastStock = $this->adjustStockPrepare($product);
 
         if ($lastStock) {
+            // kalau sudah ada stok meski 0 → update record lama
             $lastStock->stock += $qty;
             $lastStock->save();
         } else {
-            // Buat stok baru kalau belum ada
+            // kalau benar-benar belum ada record stok → buat baru
             $stock = new Stock();
             $stock->product()->associate($product);
             $stock->date = now();
@@ -64,7 +64,7 @@ class StockService
             $stock->save();
         }
 
-        // 🔥 selalu update total stock di product dari tabel stocks
+        // 🔥 sinkronkan total ke product->stock
         $product->stock = $product->stocks()->sum('stock');
         $product->save();
 
