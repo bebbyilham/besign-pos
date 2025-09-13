@@ -69,8 +69,8 @@ trait HasStockOpnameItemForm
                     $actual  = max(0, (int) $state);
                     $current = (int) $product->stock;
 
-                    // hitung selisih: bisa negatif (tambahan stok), bisa positif (pengurangan)
-                    $missing = $current - $actual;
+                    // selisih: positif berarti ada tambahan stok, negatif berarti berkurang
+                    $missing = $actual - $current;
 
                     $set('actual_stock', $actual);
                     $set('missing_stock', $missing);
