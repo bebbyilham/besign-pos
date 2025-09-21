@@ -18,6 +18,7 @@
       <x-table-header-cell class="number">{{ __('Price') }}</x-table-header-cell>
       <x-table-header-cell class="number">{{ __('Qty') }}</x-table-header-cell>
       <x-table-header-cell class="number">{{ __('Pembelian') }}</x-table-header-cell>
+      <x-table-header-cell class="number">{{ __('Penyesuaian') }}</x-table-header-cell>
       <x-table-header-cell class="number">{{ __('Selling') }}</x-table-header-cell>
       <x-table-header-cell class="number">{{ __('Discount') }}</x-table-header-cell>
       <x-table-header-cell class="number">{{ __('Cost') }}</x-table-header-cell>
@@ -36,6 +37,7 @@
           <x-table-cell class="number">{{ $report['selling_price'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['qty'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['purchase_qty'] }}</x-table-cell>
+          <x-table-cell class="number">{{ $report['missing_stock'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['selling'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['discount_price'] }}</x-table-cell>
           <x-table-cell class="number">{{ $report['cost'] }}</x-table-cell>
