@@ -61,9 +61,9 @@ class ProductReportService
             ])
 
             // stok opname sebelum periode
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock, missing_stock
+            ->leftJoin(DB::raw("(SELECT product_id, actual_stock
                 FROM (
-                  SELECT product_id, actual_stock, created_at,
+                  SELECT product_id, actual_stock, created_at,missing_stock,
                          ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
                   FROM stock_opname_items
                   WHERE created_at < '{$startDate->toDateTimeString()}'
@@ -72,9 +72,9 @@ class ProductReportService
             ) lo"), 'lo.product_id', '=', 'p.id')
 
             // stok opname dalam periode
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock, missing_stock
+            ->leftJoin(DB::raw("(SELECT product_id, actual_stock
                 FROM (
-                  SELECT product_id, actual_stock, created_at,
+                  SELECT product_id, actual_stock, created_at, missing_stock, 
                          ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
                   FROM stock_opname_items
                   WHERE created_at BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
