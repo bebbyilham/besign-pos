@@ -78,7 +78,7 @@ class Product extends Model
                 //     return $lastStock ? $lastStock->stock : 0;
                 // }
                 $stock = $this
-                    ->scopeStockLatestCalculateIn()
+                    ->stockLatestCalculateIn()
                     ->sum('stock');
 
                 return $stock;
@@ -92,7 +92,7 @@ class Product extends Model
         return Attribute::make(
             get: function ($value) {
                 $stock = $this
-                    ->scopeStockLatestCalculateIn();
+                    ->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
@@ -108,7 +108,7 @@ class Product extends Model
         return Attribute::make(
             get: function ($value) {
                 $stock = $this
-                    ->scopeStockLatestCalculateIn();
+                    ->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
