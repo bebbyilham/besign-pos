@@ -14,8 +14,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 
-use function Pest\Laravel\get;
-
 /**
  * @mixin IdeHelperProduct
  */
@@ -46,6 +44,16 @@ class Product extends Model
             ->where('user_id', Filament::auth()->id());
     }
 
+    /** 
+     * Relasi untuk ambil stok masuk terakhir 
+     */
+    public function lastStockIn()
+    {
+        return $this->hasOne(Stock::class)
+            ->where('type', 'in')
+            ->latest('date'); // bisa ganti created_at kalau lebih cocok
+    }
+
     public function scopeStockLatestCalculateIn()
     {
         $usingFifoPrice = Setting::get('selling_method', env('SELLING_METHOD', 'fifo')) == 'fifo';
@@ -64,67 +72,81 @@ class Product extends Model
                 ->orderByDesc('created_at')->orderByDesc('date'));
     }
 
+    /** 
+     * Stock total berdasarkan metode
+     */
     public function stockCalculate(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                // $usingNormalPrice = Setting::get('selling_method', env('SELLING_METHOD', 'fifo')) == 'normal';
-                // if ($usingNormalPrice) {
-                //     $lastStock = $this->stocks()->where('stock', '>', 0)
-                //         ->orderBy('date', 'asc')
-                //         ->first();
-                //     dd($lastStock);
-                //
-                //     return $lastStock ? $lastStock->stock : 0;
-                // }
-                $stock = $this
-                    ->stockLatestCalculateIn()
-                    ->sum('stock');
-
-                return $stock;
-            },
+            get: fn() => $this->stockLatestCalculateIn()->sum('stock'),
             set: fn($value) => $value
         );
     }
 
+    /** =======================
+     * HARGA MODAL (Initial Price)
+     * ========================*/
+
+    // Versi metode
     public function initialPriceCalculate(): Attribute
     {
         return Attribute::make(
             get: function ($value) {
-                $stock = $this
-                    ->stockLatestCalculateIn();
+                $stock = $this->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
-
                 return $stock->first()->initial_price;
             },
             set: fn($value) => $value
         );
     }
 
+    // Versi stok terakhir
+    public function initialPriceLastStock(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $this->lastStockIn()->first()?->initial_price ?? $value,
+            set: fn($value) => $value
+        );
+    }
+
+    /** =======================
+     * HARGA JUAL (Selling Price)
+     * ========================*/
+
+    // Versi metode
     public function sellingPriceCalculate(): Attribute
     {
         return Attribute::make(
             get: function ($value) {
-                $stock = $this
-                    ->stockLatestCalculateIn();
+                $stock = $this->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
-
                 return $stock->first()->selling_price;
             },
             set: fn($value) => $value
         );
     }
 
+    // Versi stok terakhir
+    public function sellingPriceLastStock(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => $this->lastStockIn()->first()?->selling_price ?? $value,
+            set: fn($value) => $value
+        );
+    }
+
+    /** =======================
+     * Lain-lain
+     * ========================*/
+
     public function sellingPriceLabelCalculate(): Attribute
     {
         return Attribute::make(
-            get: function ($value) {
-                return Number::currency($this->initial_price, Setting::get('currency', 'IDR'));
-            },
+            get: fn($value) => Number::currency($this->initial_price, Setting::get('currency', 'IDR')),
             set: fn($value) => $value
         );
     }
@@ -149,8 +171,7 @@ class Product extends Model
         return $builder->whereHas('stocks', function (Builder $builder) {
             $nearestExpired = now()->addDay($this->expiredDay);
 
-            return $builder
-                ->whereDate('expired', '<=', $nearestExpired);
+            return $builder->whereDate('expired', '<=', $nearestExpired);
         });
     }
 
@@ -184,16 +205,13 @@ class Product extends Model
     public function setExpiredDay(int $day)
     {
         $this->expiredDay = $day;
-
         return $this;
     }
 
     public function heroImage(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                return $this->hero_images ? $this->hero_images[0] : 'https://cdn4.iconfinder.com/data/icons/picture-sharing-sites/32/No_Image-1024.png';
-            }
+            get: fn() => $this->hero_images ? $this->hero_images[0] : 'https://cdn4.iconfinder.com/data/icons/picture-sharing-sites/32/No_Image-1024.png'
         );
     }
 
