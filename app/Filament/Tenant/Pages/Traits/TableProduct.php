@@ -42,7 +42,7 @@ trait TableProduct
             ->columns([
                 Stack::make([
 
-                    TextColumn::make('selling_price_last_stock')
+                    TextColumn::make('selling_price_calculate')
                         ->color('primary')
                         ->money(Setting::get('currency', 'IDR'))
                         ->size('2xl')

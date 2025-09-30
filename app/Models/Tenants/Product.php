@@ -51,7 +51,7 @@ class Product extends Model
     {
         return $this->hasOne(Stock::class)
             ->where('type', 'in')
-            ->latest('date'); // bisa ganti created_at kalau lebih cocok
+            ->latest('date'); // bisa ganti created_at jika lebih cocok
     }
 
     public function scopeStockLatestCalculateIn()
@@ -87,22 +87,29 @@ class Product extends Model
      * HARGA MODAL (Initial Price)
      * ========================*/
 
-    // Versi metode
+    // Versi metode (normal = last stock, fifo/lifo = scope)
     public function initialPriceCalculate(): Attribute
     {
         return Attribute::make(
             get: function ($value) {
+                $method = Setting::get('selling_method', env('SELLING_METHOD', 'fifo'));
+
+                if ($method === 'normal') {
+                    return $this->lastStockIn()->first()?->initial_price ?? $value;
+                }
+
                 $stock = $this->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
+
                 return $stock->first()->initial_price;
             },
             set: fn($value) => $value
         );
     }
 
-    // Versi stok terakhir
+    // Versi stok terakhir langsung
     public function initialPriceLastStock(): Attribute
     {
         return Attribute::make(
@@ -115,22 +122,29 @@ class Product extends Model
      * HARGA JUAL (Selling Price)
      * ========================*/
 
-    // Versi metode
+    // Versi metode (normal = last stock, fifo/lifo = scope)
     public function sellingPriceCalculate(): Attribute
     {
         return Attribute::make(
             get: function ($value) {
+                $method = Setting::get('selling_method', env('SELLING_METHOD', 'fifo'));
+
+                if ($method === 'normal') {
+                    return $this->lastStockIn()->first()?->selling_price ?? $value;
+                }
+
                 $stock = $this->stockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
+
                 return $stock->first()->selling_price;
             },
             set: fn($value) => $value
         );
     }
 
-    // Versi stok terakhir
+    // Versi stok terakhir langsung
     public function sellingPriceLastStock(): Attribute
     {
         return Attribute::make(
