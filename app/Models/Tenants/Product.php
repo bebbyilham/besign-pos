@@ -55,11 +55,11 @@ class Product extends Model
         return $this
             ->stocks()
             ->where('type', 'in')
-            ->when($usingNormalPrice, fn (Builder $query) => $query->orderBy('date')->latest())
-            ->when($usingFifoPrice, fn (Builder $query) => $query
+            ->when($usingNormalPrice, fn(Builder $query) => $query->orderBy('date')->latest())
+            ->when($usingFifoPrice, fn(Builder $query) => $query
                 ->where('stock', '>', 0)
                 ->orderBy('created_at')->orderBy('date'))
-            ->when($usingLifoPrice, fn (Builder $query) => $query
+            ->when($usingLifoPrice, fn(Builder $query) => $query
                 ->where('stock', '>', 0)
                 ->orderByDesc('created_at')->orderByDesc('date'));
     }
@@ -78,12 +78,12 @@ class Product extends Model
                 //     return $lastStock ? $lastStock->stock : 0;
                 // }
                 $stock = $this
-                    ->stockLatestCalculateIn()
+                    ->scopeStockLatestCalculateIn()
                     ->sum('stock');
 
                 return $stock;
             },
-            set: fn ($value) => $value
+            set: fn($value) => $value
         );
     }
 
@@ -92,14 +92,14 @@ class Product extends Model
         return Attribute::make(
             get: function ($value) {
                 $stock = $this
-                    ->stockLatestCalculateIn();
+                    ->scopeStockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
 
                 return $stock->first()->initial_price;
             },
-            set: fn ($value) => $value
+            set: fn($value) => $value
         );
     }
 
@@ -108,14 +108,14 @@ class Product extends Model
         return Attribute::make(
             get: function ($value) {
                 $stock = $this
-                    ->stockLatestCalculateIn();
+                    ->scopeStockLatestCalculateIn();
                 if ($stock?->first() == null) {
                     return $value;
                 }
 
                 return $stock->first()->selling_price;
             },
-            set: fn ($value) => $value
+            set: fn($value) => $value
         );
     }
 
@@ -125,22 +125,22 @@ class Product extends Model
             get: function ($value) {
                 return Number::currency($this->initial_price, Setting::get('currency', 'IDR'));
             },
-            set: fn ($value) => $value
+            set: fn($value) => $value
         );
     }
 
     public function heroImages(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => $value ? Str::of($value)->explode(',') : [],
-            set: fn ($value) => $value ? Arr::join(is_array($value) ? $value : $value->toArray(), ',') : null
+            get: fn($value) => $value ? Str::of($value)->explode(',') : [],
+            set: fn($value) => $value ? Arr::join(is_array($value) ? $value : $value->toArray(), ',') : null
         );
     }
 
     public function netProfit(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->selling_price - $this->initial_price
+            get: fn() => $this->selling_price - $this->initial_price
         );
     }
 
