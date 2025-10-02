@@ -16,13 +16,13 @@
 
     <x-table-header>
       <x-table-row>
-        <x-table-header-cell class="w-[80px]">SKU</x-table-header-cell>
-        <x-table-header-cell class="w-[200px]">Product Name</x-table-header-cell>
-        <x-table-header-cell class="w-[100px] text-right">Initial Price</x-table-header-cell>
+        <x-table-header-cell class="w-[90px]">SKU</x-table-header-cell>
+        <x-table-header-cell class="w-[220px]">Product Name</x-table-header-cell>
+        <x-table-header-cell class="w-[110px] text-right">Initial Price</x-table-header-cell>
         <x-table-header-cell class="w-[100px] text-right">Price</x-table-header-cell>
         <x-table-header-cell class="w-[80px] text-right">Qty</x-table-header-cell>
-        <x-table-header-cell class="w-[100px] text-right">Pembelian</x-table-header-cell>
-        <x-table-header-cell class="w-[100px] text-right">Selling</x-table-header-cell>
+        <x-table-header-cell class="w-[110px] text-right">Pembelian</x-table-header-cell>
+        <x-table-header-cell class="w-[110px] text-right">Selling</x-table-header-cell>
         <x-table-header-cell class="w-[100px] text-right">Discount</x-table-header-cell>
         <x-table-header-cell class="w-[100px] text-right">Cost</x-table-header-cell>
         <x-table-header-cell class="w-[120px] text-right">Net Selling</x-table-header-cell>
@@ -36,13 +36,13 @@
     <tbody>
       @foreach($reports as $report)
         <x-table-row>
-          <x-table-cell class="w-[80px] max-w-[80px]">{{ $report['sku'] }}</x-table-cell>
-          <x-table-cell class="w-[200px] max-w-[200px]">{{ $report['name'] }}</x-table-cell>
-          <x-table-cell class="w-[100px] text-right">{{ $report['initial_price'] }}</x-table-cell>
+          <x-table-cell class="w-[90px] max-w-[90px] break-words">{{ $report['sku'] }}</x-table-cell>
+          <x-table-cell class="w-[220px] max-w-[220px] break-words">{{ $report['name'] }}</x-table-cell>
+          <x-table-cell class="w-[110px] text-right">{{ $report['initial_price'] }}</x-table-cell>
           <x-table-cell class="w-[100px] text-right">{{ $report['selling_price'] }}</x-table-cell>
           <x-table-cell class="w-[80px] text-right">{{ $report['qty'] }}</x-table-cell>
-          <x-table-cell class="w-[100px] text-right">{{ $report['purchase_qty'] }}</x-table-cell>
-          <x-table-cell class="w-[100px] text-right">{{ $report['selling'] }}</x-table-cell>
+          <x-table-cell class="w-[110px] text-right">{{ $report['purchase_qty'] }}</x-table-cell>
+          <x-table-cell class="w-[110px] text-right">{{ $report['selling'] }}</x-table-cell>
           <x-table-cell class="w-[100px] text-right">{{ $report['discount_price'] }}</x-table-cell>
           <x-table-cell class="w-[100px] text-right">{{ $report['cost'] }}</x-table-cell>
           <x-table-cell class="w-[120px] text-right">{{ $report['total_after_discount'] }}</x-table-cell>
