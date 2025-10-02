@@ -55,6 +55,14 @@ class ProductReportService
                     ) * p.initial_price
                 ) as saldo_akhir"),
 
+                // saldo akhir jual (stok akhir x harga jual)
+                DB::raw("(
+                    COALESCE(li.actual_stock,
+                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
+                        + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
+                    ) * p.selling_price
+                ) as saldo_akhir_jual"),
+
                 // pembelian (qty & nominal)
                 DB::raw("COALESCE(pb.total_in,0) as qty_pembelian"),
                 DB::raw("COALESCE(pb.total_purchase,0) as pembelian_bruto")
@@ -97,7 +105,7 @@ class ProductReportService
                 GROUP BY sd.product_id
             ) ob"), 'ob.product_id', '=', 'p.id')
 
-            // stok masuk dalam periode (semua sumber, termasuk pembelian manual)
+            // stok masuk dalam periode
             ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
                 FROM stocks
                 WHERE type='in' AND date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
@@ -142,7 +150,9 @@ class ProductReportService
             'total_qty' => 0,
             'total_ending_stock' => 0,
             'total_ending_stock_balance' => 0,
+            'total_ending_stock_balance_sell' => 0,
             'total_pembelian' => 0,
+            'total_money_product' => 0,
         ];
 
         foreach ($rows as $row) {
@@ -162,8 +172,10 @@ class ProductReportService
                 'gross_profit' => $this->formatCurrency($row->laba_kotor),
                 'net_profit' => $this->formatCurrency($row->laba_bersih),
                 'ending_stock_balance' => $this->formatCurrency($row->saldo_akhir),
+                'ending_stock_balance_sell' => $this->formatCurrency($row->saldo_akhir_jual),
                 'purchase_qty' => (int) $row->qty_pembelian,
                 'purchase_total' => $this->formatCurrency($row->pembelian_bruto),
+                'total_money_product' => $this->formatCurrency($row->penjualan_bruto + $row->saldo_akhir_jual),
             ];
 
             $footer['total_cost'] += $row->total_cost;
@@ -176,10 +188,26 @@ class ProductReportService
             $footer['total_qty'] += (int) $row->qty;
             $footer['total_ending_stock'] += $row->stok_akhir;
             $footer['total_ending_stock_balance'] += $row->saldo_akhir;
+            $footer['total_ending_stock_balance_sell'] += $row->saldo_akhir_jual;
             $footer['total_pembelian'] += $row->pembelian_bruto;
+            $footer['total_money_product'] += $row->penjualan_bruto + $row->saldo_akhir_jual;
         }
 
-        foreach (['total_cost', 'total_gross', 'total_net', 'total_discount', 'total_gross_profit', 'total_net_profit_before_discount_selling', 'total_net_profit_after_discount_selling', 'total_ending_stock_balance', 'total_pembelian'] as $key) {
+        foreach (
+            [
+                'total_cost',
+                'total_gross',
+                'total_net',
+                'total_discount',
+                'total_gross_profit',
+                'total_net_profit_before_discount_selling',
+                'total_net_profit_after_discount_selling',
+                'total_ending_stock_balance',
+                'total_ending_stock_balance_sell',
+                'total_pembelian',
+                'total_money_product'
+            ] as $key
+        ) {
             $footer[$key] = $this->formatCurrency($footer[$key]);
         }
 
