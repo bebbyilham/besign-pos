@@ -10,7 +10,7 @@
   </p>
 
   {{-- TABLE DETAIL PRODUK --}}
-  <x-table class="w-full table-fixed [&_td]:whitespace-normal [&_td]:break-words [&_td]:max-w-[150px]">
+  <x-table class="w-full table-auto border-collapse [&_td]:whitespace-normal [&_td]:break-words [&_td]:align-top [&_th]:whitespace-normal [&_th]:break-words [&_th]:align-top">
     <x-table-header>
       <x-table-header-cell>SKU</x-table-header-cell>
       <x-table-header-cell>{{ __('Product Name') }}</x-table-header-cell>
