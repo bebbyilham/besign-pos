@@ -5,14 +5,15 @@
   </div>
 
   <p class="mb-4">
-    {{ __('Period') }}: 
+    {{ __('Period') }}:
     <b>{{ $header['start_date'] }} - {{ $header['end_date'] }}</b>
   </p>
 
   {{-- TABLE DETAIL PRODUK --}}
-  <x-table class="w-full table-fixed border-collapse
-    [&_td]:whitespace-normal [&_td]:break-words [&_td]:align-top
-    [&_th]:whitespace-normal [&_th]:break-words [&_th]:align-top">
+  <x-table class="w-full table-fixed border-collapse border 
+    [&_th]:whitespace-normal [&_th]:break-words [&_th]:align-top
+    [&_td]:whitespace-normal [&_td]:break-words [&_td]:align-top [&_td]:p-2">
+
     <x-table-header>
       <x-table-row>
         <x-table-header-cell class="w-[80px]">SKU</x-table-header-cell>
@@ -31,6 +32,7 @@
         <x-table-header-cell class="w-[140px] text-right">{{ __('Saldo Stok Akhir') }}</x-table-header-cell>
       </x-table-row>
     </x-table-header>
+
     <tbody>
       @foreach($reports as $report)
         <x-table-row>
@@ -66,24 +68,23 @@
   </x-table>
 
   {{-- TABLE GRAND TOTAL --}}
-  <x-table class="w-full table-fixed mt-4 border-collapse
-    [&_td]:whitespace-normal [&_td]:break-words [&_td]:align-top
-    [&_th]:whitespace-normal [&_th]:break-words [&_th]:align-top">
+  <x-table class="w-full table-fixed mt-4 border 
+    [&_td]:whitespace-normal [&_td]:break-words [&_td]:align-top [&_td]:p-2">
     <x-table-header>
       <x-table-row>
-        <x-table-header-cell colspan="8" class="text-center font-semibold">
+        <x-table-header-cell colspan="8" class="text-center">
           {{ __('Grand Total') }}
         </x-table-header-cell>
       </x-table-row>
       <x-table-row>
-        <x-table-header-cell class="w-[140px]">{{ __('Total Saldo Stok') }}</x-table-header-cell>
+        <x-table-header-cell class="w-[150px]">{{ __('Total Saldo Stok') }}</x-table-header-cell>
         <x-table-header-cell class="w-[120px]">{{ __('Total Biaya') }}</x-table-header-cell>
         <x-table-header-cell class="w-[120px]">{{ __('Penjualan') }}</x-table-header-cell>
-        <x-table-header-cell class="w-[160px]">{{ __('Discount per Penjualan') }}</x-table-header-cell>
-        <x-table-header-cell class="w-[180px]">{{ __('Penjualan Setelah Discount') }}</x-table-header-cell>
+        <x-table-header-cell class="w-[140px]">{{ __('Discount per Penjualan') }}</x-table-header-cell>
+        <x-table-header-cell class="w-[160px]">{{ __('Penjualan Setelah Discount') }}</x-table-header-cell>
         <x-table-header-cell class="w-[140px]">{{ __('Keuntungan Kotor') }}</x-table-header-cell>
-        <x-table-header-cell class="w-[200px]">{{ __('Keuntungan Bersih Sebelum Diskon Penjualan') }}</x-table-header-cell>
-        <x-table-header-cell class="w-[200px]">{{ __('Keuntungan Bersih Setelah Diskon Penjualan') }}</x-table-header-cell>
+        <x-table-header-cell class="w-[180px]">{{ __('Keuntungan Bersih Sebelum Diskon Penjualan') }}</x-table-header-cell>
+        <x-table-header-cell class="w-[180px]">{{ __('Keuntungan Bersih Setelah Diskon Penjualan') }}</x-table-header-cell>
       </x-table-row>
     </x-table-header>
     <tbody>
