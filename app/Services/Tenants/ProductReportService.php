@@ -31,9 +31,9 @@ class ProductReportService
 
                 DB::raw("
                 CASE 
-                    WHEN li.date >= COALESCE(
-                        GREATEST(MAX(ip.date), MAX(op.date)),
-                        li.date
+                    WHEN li.created_at >= COALESCE(
+                        GREATEST(MAX(ip.created_at), MAX(op.created_at)),
+                        li.created_at
                     )
                     THEN li.actual_stock
                     ELSE (
@@ -49,9 +49,9 @@ class ProductReportService
                 // stok akhir
                 DB::raw("
                 CASE 
-                    WHEN li.date >= COALESCE(
-                        GREATEST(MAX(ip.date), MAX(op.date)),
-                        li.date
+                    WHEN li.created_at >= COALESCE(
+                        GREATEST(MAX(ip.created_at), MAX(op.created_at)),
+                        li.created_at
                     )
                     THEN li.actual_stock
                     ELSE (
