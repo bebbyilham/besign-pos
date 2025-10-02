@@ -48,7 +48,7 @@ trait CartInteraction
                 ],
                 [
                     'qty' => $qty,
-                    'price' => $product->selling_price_calculate * $qty,
+                    'price' => $product->selling_price * $qty,
                     'user_id' => $auth,
                     'product_id' => $product->getKey(),
                 ]
@@ -69,7 +69,7 @@ trait CartInteraction
 
             return;
         }
-        $price = $product->selling_price_calculate * ($qty);
+        $price = $product->selling_price * ($qty);
         $cartItem->fill([
             'qty' => $qty,
             'price' => $price,
@@ -86,7 +86,7 @@ trait CartInteraction
 
     public function addDiscountPricePerItem(CartItem $cartItem, $value)
     {
-        if (! ($value && $value > 0) && $value > $cartItem->product->selling_price_calculate) {
+        if (! ($value && $value > 0) && $value > $cartItem->product->selling_price) {
             return;
         }
         $cartItem->discount_price = (float) $value;
@@ -113,7 +113,7 @@ trait CartInteraction
 
             return;
         }
-        $price = $cartItem->product->selling_price_calculate * ((int) $value);
+        $price = $cartItem->product->selling_price * ((int) $value);
         $cartItem->fill([
             'qty' => $value,
             'price' => $price,
