@@ -24,6 +24,7 @@
         <th class="w-[120px] px-2 py-1 border text-right">Net Selling</th>
         <th class="w-[120px] px-2 py-1 border text-right">Gross Profit</th>
         <th class="w-[120px] px-2 py-1 border text-right">Net Profit</th>
+        <th class="w-[100px] px-2 py-1 border text-right">Stok Awal</th>
         <th class="w-[100px] px-2 py-1 border text-right">Stok Akhir</th>
         <th class="w-[140px] px-2 py-1 border text-right">Saldo Stok Akhir</th>
       </tr>
@@ -43,6 +44,7 @@
         <td class="w-[120px] px-2 py-1 border text-right">{{ $report['total_after_discount'] }}</td>
         <td class="w-[120px] px-2 py-1 border text-right">{{ $report['gross_profit'] }}</td>
         <td class="w-[120px] px-2 py-1 border text-right">{{ $report['net_profit'] }}</td>
+        <td class="w-[100px] px-2 py-1 border text-right">{{ $report['beginning_stock'] }}</td>
         <td class="w-[100px] px-2 py-1 border text-right">{{ $report['ending_stock'] }}</td>
         <td class="w-[140px] px-2 py-1 border text-right">{{ $report['ending_stock_balance'] }}</td>
       </tr>
