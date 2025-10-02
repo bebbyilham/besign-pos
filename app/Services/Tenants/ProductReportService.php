@@ -27,16 +27,39 @@ class ProductReportService
                 'p.selling_price',
 
                 // stok awal
-                DB::raw("COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))) as stok_awal"),
+                // DB::raw("COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))) as stok_awal"),
+
+                DB::raw("
+                CASE 
+                    WHEN li.date >= COALESCE(
+                        GREATEST(MAX(ip.date), MAX(op.date)),
+                        li.date
+                    )
+                    THEN li.actual_stock
+                    ELSE (
+                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
+                        + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
+                    )
+                END as stok_akhir
+                "),
 
                 // mutasi
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
 
                 // stok akhir
-                DB::raw("COALESCE(li.actual_stock,
+                DB::raw("
+                CASE 
+                    WHEN li.date >= COALESCE(
+                        GREATEST(MAX(ip.date), MAX(op.date)),
+                        li.date
+                    )
+                    THEN li.actual_stock
+                    ELSE (
                         COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
-                    ) as stok_akhir"),
+                        + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
+                    )
+                END as stok_akhir
+                "),
 
                 // transaksi penjualan
                 DB::raw("COALESCE(op.total_out,0) as qty"),
