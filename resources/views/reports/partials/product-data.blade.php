@@ -10,7 +10,7 @@
   </p>
 
   {{-- TABLE DETAIL PRODUK --}}
-  <x-table class="w-full table-fixed">
+  <x-table class="w-full table-fixed [&_td]:whitespace-normal [&_td]:break-words [&_td]:max-w-[150px]">
     <x-table-header>
       <x-table-header-cell>SKU</x-table-header-cell>
       <x-table-header-cell>{{ __('Product Name') }}</x-table-header-cell>
@@ -62,7 +62,7 @@
   </x-table>
 
   {{-- TABLE GRAND TOTAL --}}
-  <x-table class="w-full table-fixed mt-4">
+  <x-table class="w-full table-fixed mt-4 [&_td]:whitespace-normal [&_td]:break-words [&_td]:max-w-[150px]">
     <x-table-header>
       <x-table-row>
         <x-table-header-cell colspan="8" class="text-center">
@@ -70,6 +70,7 @@
         </x-table-header-cell>
       </x-table-row>
       <x-table-row>
+        <x-table-header-cell>{{ __('Total Saldo Stok') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Total Biaya') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Penjualan') }}</x-table-header-cell>
         <x-table-header-cell>{{ __('Discount per Penjualan') }}</x-table-header-cell>
@@ -81,6 +82,7 @@
     </x-table-header>
     <tbody>
       <x-table-row class="font-bold bg-gray-50">
+        <x-table-cell class="number">{{ $footer['total_ending_stock_balance'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_cost'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_gross'] }}</x-table-cell>
         <x-table-cell class="number">{{ $footer['total_discount'] }}</x-table-cell>
