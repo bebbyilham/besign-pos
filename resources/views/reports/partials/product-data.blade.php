@@ -52,9 +52,10 @@
       <tr class="font-semibold bg-gray-50">
         <td colspan="4" class="px-2 py-1 border text-right">Total</td>
         <td class="px-2 py-1 border text-right">{{ $footer['total_qty'] }}</td>
+        <td class="border"></td>
         <td class="px-2 py-1 border text-right">{{ $footer['total_gross'] }}</td>
         <td class="px-2 py-1 border text-right">{{ $footer['total_discount'] }}</td>
-        <td colspan="2" class="border"></td>
+        <td class="border"></td>
         <td class="px-2 py-1 border text-right">{{ $footer['total_gross_profit'] }}</td>
         <td class="px-2 py-1 border text-right">{{ $footer['total_net_profit_before_discount_selling'] }}</td>
         <td colspan="2" class="border"></td>
