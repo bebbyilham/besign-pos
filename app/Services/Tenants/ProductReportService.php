@@ -129,7 +129,7 @@ class ProductReportService
             ) ob"), 'ob.product_id', '=', 'p.id')
 
             // stok masuk dalam periode
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
+            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in, created_at
                 FROM stocks
                 WHERE type='in' AND date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
                 GROUP BY product_id
@@ -152,7 +152,7 @@ class ProductReportService
                     SUM(sd.qty) as total_out,
                     SUM(sd.price) as total_price,
                     SUM(sd.cost) as total_cost,
-                    SUM(sd.discount_price) as total_discount
+                    SUM(sd.discount_price) as total_discount, created_at
                 FROM selling_details sd
                 JOIN sellings s ON s.id = sd.selling_id
                 WHERE s.date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
