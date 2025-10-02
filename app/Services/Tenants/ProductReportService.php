@@ -30,36 +30,28 @@ class ProductReportService
                 // DB::raw("COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))) as stok_awal"),
 
                 DB::raw("
-                CASE 
-                    WHEN li.created_at >= COALESCE(
-                        GREATEST(MAX(ip.created_at), MAX(op.created_at)),
-                        li.created_at
-                    )
-                    THEN li.actual_stock
-                    ELSE (
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                    )
-                END as stok_akhir
+                    CASE 
+                        WHEN li.created_at >= COALESCE(GREATEST(ip.created_at, op.created_at), li.created_at)
+                        THEN li.actual_stock
+                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
+                    END as stok_awal
                 "),
+
 
                 // mutasi
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
 
-                // stok akhir
                 DB::raw("
                 CASE 
-                    WHEN li.created_at >= COALESCE(
-                        GREATEST(MAX(ip.created_at), MAX(op.created_at)),
-                        li.created_at
-                    )
+                    WHEN li.created_at >= COALESCE(GREATEST(ip.created_at, op.created_at), li.created_at)
                     THEN li.actual_stock
                     ELSE (
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
+                        (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
                         + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     )
                 END as stok_akhir
                 "),
+
 
                 // transaksi penjualan
                 DB::raw("COALESCE(op.total_out,0) as qty"),
