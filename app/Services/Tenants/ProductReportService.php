@@ -28,28 +28,22 @@ class ProductReportService
 
                 // stok awal (opname sebelum periode atau akumulasi before)
                 DB::raw("
-                COALESCE(
-                    lo.actual_stock,
-                    (COALESCE(ib.total_in, 0) - COALESCE(ob.total_out, 0))
-                ) as stok_awal
-            "),
+                CASE 
+                    WHEN lo.actual_stock IS NOT NULL
+                        THEN lo.actual_stock
+                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
+                END as stok_awal,
+                "),
 
                 // mutasi
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
 
                 // stok akhir (opname dalam periode dipakai hanya jika valid)
                 DB::raw("
-                CASE
-                    WHEN li.actual_stock IS NOT NULL
-                     AND li.created_at >= GREATEST(
-                        COALESCE(ip.created_at, '1970-01-01 00:00:00'),
-                        COALESCE(op.created_at, '1970-01-01 00:00:00')
-                     )
-                    THEN li.actual_stock
-                    ELSE (
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                    )
+                CASE 
+                    WHEN lo.actual_stock IS NOT NULL
+                        THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
+                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                 END as stok_akhir
             "),
 
