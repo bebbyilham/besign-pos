@@ -76,7 +76,6 @@ class ProductReportService
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) as laba_bersih"),
 
                 // 5. SALDO AKHIR MODAL: Stok Akhir * Harga Modal (initial_price)
-                // Dihilangkan satu kurung kurawal pembuka dan penutup di sekitar seluruh ekspresi untuk memperbaiki SQL syntax error.
                 DB::raw("(
                     (
                         CASE 
@@ -89,7 +88,6 @@ class ProductReportService
                 as saldo_akhir"),
 
                 // 6. SALDO AKHIR JUAL: Stok Akhir * Harga Jual (selling_price)
-                // Dihilangkan satu kurung kurawal pembuka dan penutup di sekitar seluruh ekspresi untuk memperbaiki SQL syntax error.
                 DB::raw("(
                     (
                         CASE 
@@ -122,7 +120,8 @@ class ProductReportService
             ) lo"), 'lo.product_id', '=', 'p.id')
 
             // mutasi_awal: Cek apakah ada mutasi (transaksi IN atau OUT) antara SO terakhir dan start_date
-            ->leftJoin(DB::raw("
+            // Diberikan kurung pembuka dan alias `mutasi_awal` di dalam DB::raw()
+            ->leftJoin(DB::raw("(
                 SELECT 
                     s.product_id, 
                     1 as has_mutations -- Flag untuk menandakan adanya transaksi
@@ -141,7 +140,7 @@ class ProductReportService
                 -- Cek jika ada stok yang masuk/keluar SETELAH SO terakhir dan SEBELUM periode laporan
                 WHERE s.date > latest_so.latest_so_date AND s.date < '{$startDateSql}'
                 GROUP BY s.product_id
-            "), 'mutasi_awal.product_id', '=', 'p.id')
+            ) mutasi_awal"), 'mutasi_awal.product_id', '=', 'p.id')
 
             // ib: Stok Masuk sebelum periode (INVENTORY BEGINNING - Fallback 1)
             ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
