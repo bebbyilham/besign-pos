@@ -120,7 +120,6 @@ class ProductReportService
             ) lo"), 'lo.product_id', '=', 'p.id')
 
             // mutasi_awal: Cek apakah ada mutasi (transaksi IN atau OUT) antara SO terakhir dan start_date
-            // Diberikan kurung pembuka dan alias `mutasi_awal` di dalam DB::raw()
             ->leftJoin(DB::raw("(
                 SELECT 
                     s.product_id, 
@@ -150,12 +149,12 @@ class ProductReportService
             ) ib"), 'ib.product_id', '=', 'p.id')
 
             // ob_stock: Stok Keluar TOTAL sebelum periode (OUTGOING BEGINNING - Fallback 2)
-            // Menggunakan tabel stocks (type='out') untuk mencakup Penjualan, Penyesuaian, dll.
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(qty) as total_out
+            // Menggunakan kolom 'init_stock' untuk kuantitas, karena 'qty' tidak ditemukan di tabel stocks
+            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_out
                 FROM stocks 
                 WHERE type='out' AND date < '{$startDateSql}'
                 GROUP BY product_id
-            ) ob_stock"), 'ob_stock.product_id', '=', 'p.id')
+            ) ob_stock"), 'ob_stock.product_id', '=', 'p.id') // Perubahan: SUM(qty) -> SUM(init_stock)
 
             // ---------------------------------------------------------------------
             // 3. JOIN: Data Dalam Periode ($startDate - $endDate)
@@ -169,12 +168,12 @@ class ProductReportService
             ) ip"), 'ip.product_id', '=', 'p.id')
 
             // outp_stock: Stok Keluar TOTAL dalam periode
-            // Menggunakan tabel stocks (type='out') untuk perhitungan mutasi
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(qty) as total_out
+            // Menggunakan kolom 'init_stock' untuk kuantitas, karena 'qty' tidak ditemukan di tabel stocks
+            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_out
                 FROM stocks 
                 WHERE type='out' AND date BETWEEN '{$startDateSql}' AND '{$endDateSql}'
                 GROUP BY product_id
-            ) outp_stock"), 'outp_stock.product_id', '=', 'p.id')
+            ) outp_stock"), 'outp_stock.product_id', '=', 'p.id') // Perubahan: SUM(qty) -> SUM(init_stock)
 
             // pb: Khusus Pembelian (Purchasing) dalam periode
             ->leftJoin(DB::raw("(SELECT s.product_id,
