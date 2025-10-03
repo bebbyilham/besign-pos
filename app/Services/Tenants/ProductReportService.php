@@ -10,28 +10,15 @@ use Illuminate\Support\Number;
 
 class ProductReportService
 {
-    /**
-     * Generate product report data for a specific date range.
-     *
-     * @param array $data Contains 'start_date' and 'end_date'.
-     * @return array
-     */
     public function generate(array $data): array
     {
-        // Mendapatkan data dasar dan menentukan rentang tanggal
-        // Kita tidak memakai $profile = Profile::get(); di sini karena tidak digunakan di bawah.
         $timezone  = 'Asia/Jakarta';
         $about     = About::first();
         $startDate = Carbon::parse($data['start_date'])->startOfDay();
         $endDate   = Carbon::parse($data['end_date'])->endOfDay();
 
-        // Format tanggal untuk kueri SQL
         $startDateSql = $startDate->toDateTimeString();
         $endDateSql = $endDate->toDateTimeString();
-
-        // ---------------------------------------------------------------------
-        // 1. Kueri Utama untuk Menghitung Stok Awal, Mutasi, dan Stok Akhir
-        // ---------------------------------------------------------------------
 
         $rows = DB::table('products as p')
             ->select([
@@ -41,28 +28,30 @@ class ProductReportService
                 'p.initial_price',
                 'p.selling_price',
 
-                // 1. STOK AWAL: Prioritas Stok Opname Terakhir (lo), lalu Transaksi Sebelum Periode (ib - ob)
+                // 1. STOK AWAL: Prioritas SO (lo) HANYA jika TIDAK ADA mutasi_awal
                 DB::raw("
                 CASE 
-                    WHEN lo.actual_stock IS NOT NULL 
-                        THEN lo.actual_stock
-                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
+                    WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                        THEN lo.actual_stock 
+                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
                 END as stok_awal
                 "),
 
-                // 2. MUTASI: Stok Masuk (ip) dikurangi Stok Keluar (op) dalam Periode
-                DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
+                // 2. MUTASI PERIODE (Stok Masuk - Stok Keluar TOTAL dalam periode laporan)
+                DB::raw("(COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0)) as mutasi"),
 
-                // 3. STOK AKHIR: Stok Awal (logika sama dengan atas) + Mutasi
+                // 3. STOK AKHIR: Stok Awal + Mutasi Periode
                 DB::raw("
-                CASE 
-                    WHEN lo.actual_stock IS NOT NULL 
-                        THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                END as stok_akhir
+                (
+                    CASE 
+                        WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                            THEN lo.actual_stock
+                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
+                    END
+                ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0)) as stok_akhir
                 "),
 
-                // 4. TRANSAKSI PENJUALAN (dari op)
+                // 4. TRANSAKSI PENJUALAN (Untuk nominal dan laba)
                 DB::raw("COALESCE(op.total_out,0) as qty"),
                 DB::raw("COALESCE(op.total_price,0) as penjualan_bruto"),
                 DB::raw("COALESCE(op.total_cost,0) as total_cost"),
@@ -71,35 +60,35 @@ class ProductReportService
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0)) as laba_kotor"),
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) as laba_bersih"),
 
-                // 5. SALDO AKHIR MODAL: Stok Akhir * Harga Modal (initial_price)
-                DB::raw("(
-                (CASE 
-                    WHEN lo.actual_stock IS NOT NULL 
-                        THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                END) * p.initial_price
+                // 5. SALDO AKHIR MODAL & JUAL (menggunakan kolom stok_akhir)
+                DB::raw("((
+                    CASE 
+                        WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                            THEN lo.actual_stock
+                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
+                    END
+                ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))) * p.initial_price
                 ) as saldo_akhir"),
-
-                // 6. SALDO AKHIR JUAL: Stok Akhir * Harga Jual (selling_price)
-                DB::raw("(
-                (CASE 
-                    WHEN lo.actual_stock IS NOT NULL 
-                        THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                    ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
-                END) * p.selling_price
+                DB::raw("((
+                    CASE 
+                        WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                            THEN lo.actual_stock
+                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
+                    END
+                ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))) * p.selling_price
                 ) as saldo_akhir_jual"),
 
-                // 7. PEMBELIAN DALAM PERIODE (dari pb)
+                // 6. PEMBELIAN
                 DB::raw("COALESCE(pb.total_in,0) as qty_pembelian"),
                 DB::raw("COALESCE(pb.total_purchase,0) as pembelian_bruto")
             ])
 
             // ---------------------------------------------------------------------
-            // 2. JOIN: Data Sebelum Periode ($startDate)
+            // JOIN SEBELUM PERIODE
             // ---------------------------------------------------------------------
 
             // lo: Stok Opname terakhir sebelum periode (LAST OPNAME)
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock, created_at
+            ->leftJoin(DB::raw("(SELECT product_id, actual_stock, created_at as so_date
                 FROM (
                     SELECT product_id, actual_stock, created_at,
                         ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
@@ -109,33 +98,61 @@ class ProductReportService
                 WHERE rn = 1
             ) lo"), 'lo.product_id', '=', 'p.id')
 
-            // ib: Stok Masuk sebelum periode (INVENTORY BEGINNING)
+            // mutasi_awal: Cek apakah ada mutasi (transaksi) antara SO terakhir (lo.so_date) dan start_date
+            // Kita hanya perlu mengetahui keberadaannya, bukan jumlah mutasinya.
+            ->leftJoin(DB::raw("
+                SELECT 
+                    s.product_id, 
+                    1 as has_mutations -- Flag untuk menandakan adanya transaksi
+                FROM stocks s
+                JOIN (
+                    SELECT product_id, MAX(so_date) as latest_so_date
+                    FROM (
+                        SELECT product_id, created_at as so_date,
+                            ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
+                        FROM stock_opname_items
+                        WHERE created_at < '{$startDateSql}'
+                    ) t
+                    WHERE rn = 1
+                    GROUP BY product_id
+                ) latest_so ON latest_so.product_id = s.product_id
+                WHERE s.date > latest_so.latest_so_date AND s.date < '{$startDateSql}'
+                GROUP BY s.product_id
+            "), 'mutasi_awal.product_id', '=', 'p.id')
+
+            // ib: Stok Masuk sebelum periode (digunakan sebagai Fallback)
             ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
                 FROM stocks
                 WHERE type='in' AND date < '{$startDateSql}'
                 GROUP BY product_id
             ) ib"), 'ib.product_id', '=', 'p.id')
 
-            // ob: Penjualan/Stok Keluar sebelum periode (OUTGOING BEGINNING)
-            ->leftJoin(DB::raw("(SELECT sd.product_id, SUM(sd.qty) as total_out
-                FROM selling_details sd
-                JOIN sellings s ON s.id = sd.selling_id
-                WHERE s.date < '{$startDateSql}'
-                GROUP BY sd.product_id
-            ) ob"), 'ob.product_id', '=', 'p.id')
+            // ob_stock: Stok Keluar TOTAL sebelum periode (digunakan sebagai Fallback)
+            ->leftJoin(DB::raw("(SELECT product_id, SUM(qty) as total_out
+                FROM stocks 
+                WHERE type='out' AND date < '{$startDateSql}'
+                GROUP BY product_id
+            ) ob_stock"), 'ob_stock.product_id', '=', 'p.id')
 
             // ---------------------------------------------------------------------
-            // 3. JOIN: Data Dalam Periode ($startDate - $endDate)
+            // JOIN DALAM PERIODE (SAMA)
             // ---------------------------------------------------------------------
 
-            // ip: Stok Masuk dalam periode (INVENTORY PERIOD)
+            // ip: Stok Masuk dalam periode
             ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
                 FROM stocks
                 WHERE type='in' AND date BETWEEN '{$startDateSql}' AND '{$endDateSql}'
                 GROUP BY product_id
             ) ip"), 'ip.product_id', '=', 'p.id')
 
-            // pb: Khusus Pembelian (Purchasing) dalam periode
+            // outp_stock: Stok Keluar TOTAL dalam periode
+            ->leftJoin(DB::raw("(SELECT product_id, SUM(qty) as total_out
+                FROM stocks 
+                WHERE type='out' AND date BETWEEN '{$startDateSql}' AND '{$endDateSql}'
+                GROUP BY product_id
+            ) outp_stock"), 'outp_stock.product_id', '=', 'p.id')
+
+            // pb: Khusus Pembelian
             ->leftJoin(DB::raw("(SELECT s.product_id,
                 SUM(s.init_stock) as total_in,
                 SUM(s.init_stock * p.initial_price) as total_purchase
@@ -147,7 +164,7 @@ class ProductReportService
                 GROUP BY s.product_id
             ) pb"), 'pb.product_id', '=', 'p.id')
 
-            // op: Penjualan/Stok Keluar dalam periode (OUTGOING PERIOD)
+            // op: Penjualan Nominal
             ->leftJoin(DB::raw("(SELECT sd.product_id,
                 SUM(sd.qty) as total_out,
                 SUM(sd.price) as total_price,
@@ -161,9 +178,7 @@ class ProductReportService
 
             ->get();
 
-        // ---------------------------------------------------------------------
-        // 4. Proses Data & Footer
-        // ---------------------------------------------------------------------
+        // --- (Logika Footer dan Reports tetap sama) ---
 
         $reports = [];
         $footer = [
@@ -183,7 +198,6 @@ class ProductReportService
         ];
 
         foreach ($rows as $row) {
-            // Pengisian baris laporan
             $reports[] = [
                 'sku' => $row->sku,
                 'name' => $row->name,
@@ -206,7 +220,6 @@ class ProductReportService
                 'total_money_product' => $this->formatCurrency($row->penjualan_bruto + $row->saldo_akhir_jual),
             ];
 
-            // Akumulasi footer
             $footer['total_cost'] += $row->total_cost;
             $footer['total_gross'] += $row->penjualan_bruto;
             $footer['total_net'] += $row->total_after_discount;
@@ -222,7 +235,6 @@ class ProductReportService
             $footer['total_money_product'] += $row->penjualan_bruto + $row->saldo_akhir_jual;
         }
 
-        // Format footer ke mata uang
         foreach (
             [
                 'total_cost',
@@ -240,10 +252,6 @@ class ProductReportService
         ) {
             $footer[$key] = $this->formatCurrency($footer[$key]);
         }
-
-        // ---------------------------------------------------------------------
-        // 5. Output
-        // ---------------------------------------------------------------------
 
         return [
             'reports' => $reports,
@@ -267,7 +275,6 @@ class ProductReportService
      */
     private function formatCurrency($value): string
     {
-        // Pastikan Number::format() tersedia, biasanya memerlukan use Illuminate\Support\Number;
         return Number::format($value);
     }
 }
