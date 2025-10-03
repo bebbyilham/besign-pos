@@ -18,7 +18,7 @@ class ProductReportService
         $startDate = Carbon::parse($data['start_date'])->startOfDay();
         $endDate   = Carbon::parse($data['end_date'])->endOfDay();
 
-        $products = DB::table('products as p')
+        $rows = DB::table('products as p')
             ->select(
                 'p.id',
                 'p.name',
