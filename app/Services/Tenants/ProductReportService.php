@@ -76,28 +76,30 @@ class ProductReportService
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) as laba_bersih"),
 
                 // 5. SALDO AKHIR MODAL: Stok Akhir * Harga Modal (initial_price)
+                // Dihilangkan satu kurung kurawal pembuka dan penutup di sekitar seluruh ekspresi untuk memperbaiki SQL syntax error.
                 DB::raw("(
-                (
-                    CASE 
-                        WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
-                            THEN lo.actual_stock
-                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
-                    END
-                ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))
+                    (
+                        CASE 
+                            WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                                THEN lo.actual_stock
+                            ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
+                        END
+                    ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))
                 ) * p.initial_price
-                ) as saldo_akhir"),
+                as saldo_akhir"),
 
                 // 6. SALDO AKHIR JUAL: Stok Akhir * Harga Jual (selling_price)
+                // Dihilangkan satu kurung kurawal pembuka dan penutup di sekitar seluruh ekspresi untuk memperbaiki SQL syntax error.
                 DB::raw("(
-                (
-                    CASE 
-                        WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
-                            THEN lo.actual_stock
-                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
-                    END
-                ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))
+                    (
+                        CASE 
+                            WHEN lo.actual_stock IS NOT NULL AND mutasi_awal.has_mutations IS NULL 
+                                THEN lo.actual_stock
+                            ELSE (COALESCE(ib.total_in,0) - COALESCE(ob_stock.total_out,0))
+                        END
+                    ) + (COALESCE(ip.total_in,0) - COALESCE(outp_stock.total_out,0))
                 ) * p.selling_price
-                ) as saldo_akhir_jual"),
+                as saldo_akhir_jual"),
 
                 // 7. PEMBELIAN DALAM PERIODE (dari pb)
                 DB::raw("COALESCE(pb.total_in,0) as qty_pembelian"),
