@@ -30,7 +30,8 @@ class ProductReportService
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
+                             AND lo.created_at > COALESCE(last_tx.last_tx_date, '1970-01-01')
+                             AND lo.created_at < '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock
                         ELSE (COALESCE(ib.total_in, 0) - COALESCE(ob.total_out, 0))
                     END AS stok_awal
@@ -43,7 +44,8 @@ class ProductReportService
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
+                             AND lo.created_at > COALESCE(last_tx.last_tx_date, '1970-01-01')
+                             AND lo.created_at < '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END AS stok_akhir
@@ -62,7 +64,8 @@ class ProductReportService
                 DB::raw("(
                     (CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
+                             AND lo.created_at > COALESCE(last_tx.last_tx_date, '1970-01-01')
+                             AND lo.created_at < '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END) * p.initial_price
@@ -72,7 +75,8 @@ class ProductReportService
                 DB::raw("(
                     (CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
+                             AND lo.created_at > COALESCE(last_tx.last_tx_date, '1970-01-01')
+                             AND lo.created_at < '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END) * p.selling_price
@@ -95,6 +99,19 @@ class ProductReportService
                 ON last_opname.product_id = soi.product_id 
                 AND last_opname.max_created = soi.created_at
             ) lo"), 'lo.product_id', '=', 'p.id')
+
+            // ✅ transaksi terakhir sebelum periode (gabungan in/out)
+            ->leftJoin(DB::raw("(SELECT product_id, MAX(tx_date) AS last_tx_date
+                FROM (
+                    SELECT product_id, date AS tx_date FROM stocks WHERE date < '{$startDate->toDateTimeString()}'
+                    UNION ALL
+                    SELECT sd.product_id, s.date AS tx_date 
+                    FROM selling_details sd 
+                    JOIN sellings s ON s.id = sd.selling_id 
+                    WHERE s.date < '{$startDate->toDateTimeString()}'
+                ) tx
+                GROUP BY product_id
+            ) last_tx"), 'last_tx.product_id', '=', 'p.id')
 
             // stok masuk sebelum periode
             ->leftJoin(DB::raw("(SELECT product_id,
