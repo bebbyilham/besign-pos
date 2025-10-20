@@ -30,10 +30,15 @@ class ProductReportService
                 DB::raw("
                 CASE 
                     WHEN lo.actual_stock IS NOT NULL 
+                        AND lo.created_at > COALESCE(GREATEST(
+                            COALESCE(ib.last_in_date, '1970-01-01'),
+                            COALESCE(ob.last_out_date, '1970-01-01')
+                        ), '1970-01-01')
                         THEN lo.actual_stock
                     ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
                 END as stok_awal
             "),
+
 
                 // mutasi
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
@@ -91,19 +96,25 @@ class ProductReportService
         ) lo"), 'lo.product_id', '=', 'p.id')
 
             // stok masuk sebelum periode
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
+            ->leftJoin(DB::raw("(SELECT product_id, 
+                SUM(init_stock) as total_in, 
+                MAX(date) as last_in_date
             FROM stocks
             WHERE type='in' AND date < '{$startDate->toDateTimeString()}'
             GROUP BY product_id
-        ) ib"), 'ib.product_id', '=', 'p.id')
+            ) ib"), 'ib.product_id', '=', 'p.id')
+
 
             // penjualan sebelum periode
-            ->leftJoin(DB::raw("(SELECT sd.product_id, SUM(sd.qty) as total_out
+            ->leftJoin(DB::raw("(SELECT sd.product_id, 
+                SUM(sd.qty) as total_out,
+                MAX(s.date) as last_out_date
             FROM selling_details sd
             JOIN sellings s ON s.id = sd.selling_id
             WHERE s.date < '{$startDate->toDateTimeString()}'
             GROUP BY sd.product_id
-        ) ob"), 'ob.product_id', '=', 'p.id')
+            ) ob"), 'ob.product_id', '=', 'p.id')
+
 
             // stok masuk dalam periode
             ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
