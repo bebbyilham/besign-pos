@@ -26,24 +26,24 @@ class ProductReportService
                 'p.initial_price',
                 'p.selling_price',
 
-                // ✅ stok awal: pakai opname jika opname terakhir > transaksi terakhir
+                // ✅ stok awal
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at > COALESCE(GREATEST(ib.last_in_date, ob.last_out_date), lo.created_at)
+                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock
-                        ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))
+                        ELSE (COALESCE(ib.total_in, 0) - COALESCE(ob.total_out, 0))
                     END AS stok_awal
                 "),
 
-                // mutasi selama periode
+                // ✅ mutasi selama periode
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) AS mutasi"),
 
-                // ✅ stok akhir dengan logika opname lebih besar
+                // ✅ stok akhir
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at > COALESCE(GREATEST(ib.last_in_date, ob.last_out_date), lo.created_at)
+                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END AS stok_akhir
@@ -58,21 +58,21 @@ class ProductReportService
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0)) AS laba_kotor"),
                 DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) AS laba_bersih"),
 
-                // saldo akhir (modal)
+                // ✅ saldo akhir (modal)
                 DB::raw("(
                     (CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at > COALESCE(GREATEST(ib.last_in_date, ob.last_out_date), lo.created_at)
+                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END) * p.initial_price
                 ) AS saldo_akhir"),
 
-                // saldo akhir jual
+                // ✅ saldo akhir jual
                 DB::raw("(
                     (CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at > COALESCE(GREATEST(ib.last_in_date, ob.last_out_date), lo.created_at)
+                             AND lo.created_at <= '{$startDate->toDateTimeString()}'
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                         ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     END) * p.selling_price
@@ -83,13 +83,13 @@ class ProductReportService
                 DB::raw("COALESCE(pb.total_purchase,0) AS pembelian_bruto")
             ])
 
-            // opname terakhir sebelum periode
+            // ✅ opname terakhir sebelum periode
             ->leftJoin(DB::raw("(SELECT soi.product_id, soi.actual_stock, soi.created_at
                 FROM stock_opname_items soi
                 JOIN (
                     SELECT product_id, MAX(created_at) AS max_created
                     FROM stock_opname_items
-                    WHERE created_at < '{$startDate->toDateTimeString()}'
+                    WHERE created_at <= '{$startDate->toDateTimeString()}'
                     GROUP BY product_id
                 ) last_opname 
                 ON last_opname.product_id = soi.product_id 
