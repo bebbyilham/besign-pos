@@ -26,7 +26,7 @@ class ProductReportService
                 'p.initial_price',
                 'p.selling_price',
 
-                // stok awal
+                // ✅ stok awal dengan logika tanggal opname > transaksi terakhir
                 DB::raw("
                 CASE 
                     WHEN lo.actual_stock IS NOT NULL 
@@ -39,20 +39,23 @@ class ProductReportService
                 END as stok_awal
             "),
 
-
-                // mutasi
+                // mutasi dalam periode
                 DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
 
                 // stok akhir
                 DB::raw("
                 CASE 
                     WHEN lo.actual_stock IS NOT NULL 
+                        AND lo.created_at > COALESCE(GREATEST(
+                            COALESCE(ib.last_in_date, '1970-01-01'),
+                            COALESCE(ob.last_out_date, '1970-01-01')
+                        ), '1970-01-01')
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                 END as stok_akhir
             "),
 
-                // transaksi penjualan
+                // penjualan
                 DB::raw("COALESCE(op.total_out,0) as qty"),
                 DB::raw("COALESCE(op.total_price,0) as penjualan_bruto"),
                 DB::raw("COALESCE(op.total_cost,0) as total_cost"),
@@ -65,6 +68,10 @@ class ProductReportService
                 DB::raw("(
                 (CASE 
                     WHEN lo.actual_stock IS NOT NULL 
+                        AND lo.created_at > COALESCE(GREATEST(
+                            COALESCE(ib.last_in_date, '1970-01-01'),
+                            COALESCE(ob.last_out_date, '1970-01-01')
+                        ), '1970-01-01')
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                 END) * p.initial_price
@@ -74,6 +81,10 @@ class ProductReportService
                 DB::raw("(
                 (CASE 
                     WHEN lo.actual_stock IS NOT NULL 
+                        AND lo.created_at > COALESCE(GREATEST(
+                            COALESCE(ib.last_in_date, '1970-01-01'),
+                            COALESCE(ob.last_out_date, '1970-01-01')
+                        ), '1970-01-01')
                         THEN lo.actual_stock + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                     ELSE (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)) + (COALESCE(ip.total_in,0) - COALESCE(op.total_out,0))
                 END) * p.selling_price
@@ -84,29 +95,28 @@ class ProductReportService
                 DB::raw("COALESCE(pb.total_purchase,0) as pembelian_bruto")
             ])
 
-            // stok opname sebelum periode (ambil yang terakhir)
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock, created_at
-            FROM (
-              SELECT product_id, actual_stock, created_at,
-                     ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
-              FROM stock_opname_items
-              WHERE created_at < '{$startDate->toDateTimeString()}'
-            ) t
-            WHERE rn = 1
-        ) lo"), 'lo.product_id', '=', 'p.id')
+            // 📦 stok opname terakhir sebelum periode
+            ->leftJoin(DB::raw("(SELECT soi.product_id, soi.actual_stock, soi.created_at
+                FROM stock_opname_items soi
+                JOIN (
+                    SELECT product_id, MAX(created_at) AS max_created
+                    FROM stock_opname_items
+                    WHERE created_at < '{$startDate->toDateTimeString()}'
+                    GROUP BY product_id
+                ) last_opname ON last_opname.product_id = soi.product_id AND last_opname.max_created = soi.created_at
+            ) lo"), 'lo.product_id', '=', 'p.id')
 
             // stok masuk sebelum periode
-            ->leftJoin(DB::raw("(SELECT product_id, 
-                SUM(init_stock) as total_in, 
+            ->leftJoin(DB::raw("(SELECT product_id,
+                SUM(init_stock) as total_in,
                 MAX(date) as last_in_date
             FROM stocks
             WHERE type='in' AND date < '{$startDate->toDateTimeString()}'
             GROUP BY product_id
             ) ib"), 'ib.product_id', '=', 'p.id')
 
-
             // penjualan sebelum periode
-            ->leftJoin(DB::raw("(SELECT sd.product_id, 
+            ->leftJoin(DB::raw("(SELECT sd.product_id,
                 SUM(sd.qty) as total_out,
                 MAX(s.date) as last_out_date
             FROM selling_details sd
@@ -115,15 +125,15 @@ class ProductReportService
             GROUP BY sd.product_id
             ) ob"), 'ob.product_id', '=', 'p.id')
 
-
             // stok masuk dalam periode
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
+            ->leftJoin(DB::raw("(SELECT product_id,
+                SUM(init_stock) as total_in
             FROM stocks
             WHERE type='in' AND date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
             GROUP BY product_id
-        ) ip"), 'ip.product_id', '=', 'p.id')
+            ) ip"), 'ip.product_id', '=', 'p.id')
 
-            // khusus pembelian (stocks dengan purchasing_id)
+            // pembelian (stocks dengan purchasing_id)
             ->leftJoin(DB::raw("(SELECT s.product_id,
                 SUM(s.init_stock) as total_in,
                 SUM(s.init_stock * p.initial_price) as total_purchase
@@ -133,7 +143,7 @@ class ProductReportService
               AND s.purchasing_id IS NOT NULL
               AND s.date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
             GROUP BY s.product_id
-        ) pb"), 'pb.product_id', '=', 'p.id')
+            ) pb"), 'pb.product_id', '=', 'p.id')
 
             // penjualan dalam periode
             ->leftJoin(DB::raw("(SELECT sd.product_id,
@@ -145,11 +155,11 @@ class ProductReportService
             JOIN sellings s ON s.id = sd.selling_id
             WHERE s.date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
             GROUP BY sd.product_id
-        ) op"), 'op.product_id', '=', 'p.id')
+            ) op"), 'op.product_id', '=', 'p.id')
 
             ->get();
 
-        // footer & report sama persis kaya versi kamu
+        // 🧾 Perhitungan footer
         $reports = [];
         $footer = [
             'total_cost' => 0,
@@ -237,10 +247,8 @@ class ProductReportService
         ];
     }
 
-
-
     private function formatCurrency($value)
     {
-        return Number::format($value);
+        return 'Rp ' . Number::format($value, 0);
     }
 }
