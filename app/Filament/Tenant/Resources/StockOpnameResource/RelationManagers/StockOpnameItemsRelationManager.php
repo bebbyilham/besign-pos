@@ -46,6 +46,7 @@ class StockOpnameItemsRelationManager extends RelationManager
                         'expired'      => __('Expired'),
                         'manual_input' => __('Manual Input'),
                         'match'        => __('Match'),
+                        'return'        => __('Return'),
                     ])
                     ->translateLabel()
                     ->disabled(fn() => $this->getOwnerRecord()->status == StockOpnameStatus::approved)
