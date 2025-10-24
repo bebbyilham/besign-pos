@@ -56,9 +56,13 @@ class ProductReportService
 
     private function getReportData(Carbon $startDate, Carbon $endDate)
     {
-        // Gunakan parameter binding untuk keamanan
+        // Gunakan prepared statement style dengan placeholder
         $startDateStr = $startDate->toDateTimeString();
         $endDateStr = $endDate->toDateTimeString();
+
+        // Escape untuk keamanan (fallback jika binding tidak tersedia)
+        $startDateEscaped = DB::getPdo()->quote($startDateStr);
+        $endDateEscaped = DB::getPdo()->quote($endDateStr);
 
         return DB::table('products as p')
             ->select([
@@ -68,11 +72,11 @@ class ProductReportService
                 'p.initial_price',
                 'p.selling_price',
 
-                // Stok awal dengan parameter binding
+                // Stok awal
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= ?
+                             AND lo.created_at <= {$startDateEscaped}
                         THEN lo.actual_stock
                         ELSE (COALESCE(ib.total_in, 0) - COALESCE(ob.total_out, 0))
                     END AS stok_awal
@@ -85,7 +89,7 @@ class ProductReportService
                 DB::raw("
                     CASE 
                         WHEN lo.actual_stock IS NOT NULL 
-                             AND lo.created_at <= ?
+                             AND lo.created_at <= {$startDateEscaped}
                         THEN lo.actual_stock + (COALESCE(ip.total_in, 0) - COALESCE(op.total_out, 0))
                         ELSE (COALESCE(ib.total_in, 0) - COALESCE(ob.total_out, 0)) + (COALESCE(ip.total_in, 0) - COALESCE(op.total_out, 0))
                     END AS stok_akhir
@@ -107,7 +111,18 @@ class ProductReportService
 
             // Opname terakhir sebelum periode
             ->leftJoin(
-                $this->getLastOpnameSubquery($startDateStr),
+                DB::raw("(
+                    SELECT soi.product_id, soi.actual_stock, soi.created_at
+                    FROM stock_opname_items soi
+                    JOIN (
+                        SELECT product_id, MAX(created_at) AS max_created
+                        FROM stock_opname_items
+                        WHERE created_at <= {$startDateEscaped}
+                        GROUP BY product_id
+                    ) last_opname 
+                    ON last_opname.product_id = soi.product_id 
+                    AND last_opname.max_created = soi.created_at
+                ) lo"),
                 'lo.product_id',
                 '=',
                 'p.id'
@@ -115,7 +130,12 @@ class ProductReportService
 
             // Stok masuk sebelum periode
             ->leftJoin(
-                $this->getStockBeforePeriodSubquery($startDateStr),
+                DB::raw("(
+                    SELECT product_id, SUM(init_stock) AS total_in
+                    FROM stocks
+                    WHERE type = 'in' AND date < {$startDateEscaped}
+                    GROUP BY product_id
+                ) ib"),
                 'ib.product_id',
                 '=',
                 'p.id'
@@ -123,7 +143,13 @@ class ProductReportService
 
             // Penjualan sebelum periode
             ->leftJoin(
-                $this->getSalesBeforePeriodSubquery($startDateStr),
+                DB::raw("(
+                    SELECT sd.product_id, SUM(sd.qty) AS total_out
+                    FROM selling_details sd
+                    JOIN sellings s ON s.id = sd.selling_id
+                    WHERE s.date < {$startDateEscaped}
+                    GROUP BY sd.product_id
+                ) ob"),
                 'ob.product_id',
                 '=',
                 'p.id'
@@ -131,7 +157,12 @@ class ProductReportService
 
             // Stok masuk dalam periode
             ->leftJoin(
-                $this->getStockInPeriodSubquery($startDateStr, $endDateStr),
+                DB::raw("(
+                    SELECT product_id, SUM(init_stock) AS total_in
+                    FROM stocks
+                    WHERE type = 'in' AND date BETWEEN {$startDateEscaped} AND {$endDateEscaped}
+                    GROUP BY product_id
+                ) ip"),
                 'ip.product_id',
                 '=',
                 'p.id'
@@ -139,7 +170,17 @@ class ProductReportService
 
             // Pembelian dalam periode
             ->leftJoin(
-                $this->getPurchaseInPeriodSubquery($startDateStr, $endDateStr),
+                DB::raw("(
+                    SELECT s.product_id,
+                        SUM(s.init_stock) AS total_in,
+                        SUM(s.init_stock * p.initial_price) AS total_purchase
+                    FROM stocks s
+                    JOIN products p ON p.id = s.product_id
+                    WHERE s.type = 'in'
+                      AND s.purchasing_id IS NOT NULL
+                      AND s.date BETWEEN {$startDateEscaped} AND {$endDateEscaped}
+                    GROUP BY s.product_id
+                ) pb"),
                 'pb.product_id',
                 '=',
                 'p.id'
@@ -147,97 +188,23 @@ class ProductReportService
 
             // Penjualan dalam periode
             ->leftJoin(
-                $this->getSalesInPeriodSubquery($startDateStr, $endDateStr),
+                DB::raw("(
+                    SELECT sd.product_id,
+                        SUM(sd.qty) AS total_out,
+                        SUM(sd.price) AS total_price,
+                        SUM(sd.cost) AS total_cost,
+                        SUM(sd.discount_price) AS total_discount
+                    FROM selling_details sd
+                    JOIN sellings s ON s.id = sd.selling_id
+                    WHERE s.date BETWEEN {$startDateEscaped} AND {$endDateEscaped}
+                    GROUP BY sd.product_id
+                ) op"),
                 'op.product_id',
                 '=',
                 'p.id'
             )
 
-            ->addBinding([$startDateStr, $startDateStr], 'select')
             ->get();
-    }
-
-    private function getLastOpnameSubquery(string $startDate)
-    {
-        return DB::raw("(
-            SELECT soi.product_id, soi.actual_stock, soi.created_at
-            FROM stock_opname_items soi
-            JOIN (
-                SELECT product_id, MAX(created_at) AS max_created
-                FROM stock_opname_items
-                WHERE created_at <= ?
-                GROUP BY product_id
-            ) last_opname 
-            ON last_opname.product_id = soi.product_id 
-            AND last_opname.max_created = soi.created_at
-        ) lo")
-            ->addBinding($startDate, 'join');
-    }
-
-    private function getStockBeforePeriodSubquery(string $startDate)
-    {
-        return DB::raw("(
-            SELECT product_id, SUM(init_stock) AS total_in
-            FROM stocks
-            WHERE type = 'in' AND date < ?
-            GROUP BY product_id
-        ) ib")
-            ->addBinding($startDate, 'join');
-    }
-
-    private function getSalesBeforePeriodSubquery(string $startDate)
-    {
-        return DB::raw("(
-            SELECT sd.product_id, SUM(sd.qty) AS total_out
-            FROM selling_details sd
-            JOIN sellings s ON s.id = sd.selling_id
-            WHERE s.date < ?
-            GROUP BY sd.product_id
-        ) ob")
-            ->addBinding($startDate, 'join');
-    }
-
-    private function getStockInPeriodSubquery(string $startDate, string $endDate)
-    {
-        return DB::raw("(
-            SELECT product_id, SUM(init_stock) AS total_in
-            FROM stocks
-            WHERE type = 'in' AND date BETWEEN ? AND ?
-            GROUP BY product_id
-        ) ip")
-            ->addBinding([$startDate, $endDate], 'join');
-    }
-
-    private function getPurchaseInPeriodSubquery(string $startDate, string $endDate)
-    {
-        return DB::raw("(
-            SELECT s.product_id,
-                SUM(s.init_stock) AS total_in,
-                SUM(s.init_stock * p.initial_price) AS total_purchase
-            FROM stocks s
-            JOIN products p ON p.id = s.product_id
-            WHERE s.type = 'in'
-              AND s.purchasing_id IS NOT NULL
-              AND s.date BETWEEN ? AND ?
-            GROUP BY s.product_id
-        ) pb")
-            ->addBinding([$startDate, $endDate], 'join');
-    }
-
-    private function getSalesInPeriodSubquery(string $startDate, string $endDate)
-    {
-        return DB::raw("(
-            SELECT sd.product_id,
-                SUM(sd.qty) AS total_out,
-                SUM(sd.price) AS total_price,
-                SUM(sd.cost) AS total_cost,
-                SUM(sd.discount_price) AS total_discount
-            FROM selling_details sd
-            JOIN sellings s ON s.id = sd.selling_id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY sd.product_id
-        ) op")
-            ->addBinding([$startDate, $endDate], 'join');
     }
 
     private function processReportData($rows, $about, Carbon $startDate, Carbon $endDate, string $timezone)
