@@ -45,6 +45,7 @@ trait HasStockOpnameItemForm
                     'lost'         => __('Lost'),
                     'expired'      => __('Expired'),
                     'manual_input' => __('Manual Input'),
+                    'return' => __('Return'),
                 ])
                 ->required()
                 ->live(),
