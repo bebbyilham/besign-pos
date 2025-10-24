@@ -4,142 +4,255 @@ namespace App\Services\Tenants;
 
 use App\Models\Tenants\About;
 use App\Models\Tenants\Profile;
+use App\Models\Tenants\Product;
+use App\Models\Tenants\Stock;
+use App\Models\Tenants\SellingDetail;
+use App\Models\Tenants\StockOpnameItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
+use Illuminate\Support\Facades\Log;
 
 class ProductReportService
 {
+    private const DEFAULT_TIMEZONE = 'Asia/Jakarta';
+
     public function generate(array $data)
     {
-        $profile   = Profile::get();
-        $timezone  = 'Asia/Jakarta';
-        $about     = About::first();
-        $startDate = Carbon::parse($data['start_date'])->startOfDay();
-        $endDate   = Carbon::parse($data['end_date'])->endOfDay();
+        try {
+            $this->validateInput($data);
 
-        $rows = DB::table('products as p')
-            ->select([
-                'p.id',
-                'p.sku',
-                'p.name',
-                'p.initial_price',
-                'p.selling_price',
+            $profile = Profile::get();
+            $timezone = config('app.timezone', self::DEFAULT_TIMEZONE);
+            $about = About::first();
 
-                // stok awal
-                DB::raw("COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0))) as stok_awal"),
+            $startDate = Carbon::parse($data['start_date'])->startOfDay();
+            $endDate = Carbon::parse($data['end_date'])->endOfDay();
 
-                // mutasi
-                DB::raw("(COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)) as mutasi"),
+            // Get all products
+            $products = Product::all();
 
-                // stok akhir
-                DB::raw("COALESCE(li.actual_stock,
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
-                    ) as stok_akhir"),
+            $reports = [];
+            $footer = $this->initializeFooter();
 
-                // transaksi penjualan
-                DB::raw("COALESCE(op.total_out,0) as qty"),
-                DB::raw("COALESCE(op.total_price,0) as penjualan_bruto"),
-                DB::raw("COALESCE(op.total_cost,0) as total_cost"),
-                DB::raw("COALESCE(op.total_discount,0) as total_diskon"),
-                DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_discount,0)) as total_after_discount"),
-                DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0)) as laba_kotor"),
-                DB::raw("(COALESCE(op.total_price,0) - COALESCE(op.total_cost,0) - COALESCE(op.total_discount,0)) as laba_bersih"),
+            foreach ($products as $product) {
+                // Hitung stok awal dengan mensimulasikan transaksi
+                $stokAwal = $this->hitungStokAwal($product->id, $startDate);
 
-                // saldo akhir (stok akhir x harga modal)
-                DB::raw("(
-                    COALESCE(li.actual_stock,
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
-                    ) * p.initial_price
-                ) as saldo_akhir"),
+                // Ambil data transaksi dalam periode
+                $transaksiPeriode = $this->getTransaksiPeriode($product->id, $startDate, $endDate);
 
-                // saldo akhir jual (stok akhir x harga jual)
-                DB::raw("(
-                    COALESCE(li.actual_stock,
-                        COALESCE(lo.actual_stock, (COALESCE(ib.total_in,0) - COALESCE(ob.total_out,0)))
-                        + COALESCE(ip.total_in,0) - COALESCE(op.total_out,0)
-                    ) * p.selling_price
-                ) as saldo_akhir_jual"),
+                // Hitung stok akhir
+                $mutasi = $transaksiPeriode['pembelian_qty'] - $transaksiPeriode['penjualan_qty'];
+                $stokAkhir = $stokAwal + $mutasi;
 
-                // pembelian (qty & nominal)
-                DB::raw("COALESCE(pb.total_in,0) as qty_pembelian"),
-                DB::raw("COALESCE(pb.total_purchase,0) as pembelian_bruto")
-            ])
+                // Hitung saldo
+                $endingStockBalance = $stokAkhir * $product->initial_price;
+                $endingStockBalanceSell = $stokAkhir * $product->selling_price;
 
-            // stok opname sebelum periode
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock
-                FROM (
-                  SELECT product_id, actual_stock, created_at,
-                         ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
-                  FROM stock_opname_items
-                  WHERE created_at < '{$startDate->toDateTimeString()}'
-                ) t
-                WHERE rn = 1
-            ) lo"), 'lo.product_id', '=', 'p.id')
+                // Format row
+                $reportRow = [
+                    'sku' => $product->sku,
+                    'name' => $product->name,
+                    'initial_price' => $this->formatCurrency($product->initial_price),
+                    'selling_price' => $this->formatCurrency($product->selling_price),
+                    'beginning_stock' => $stokAwal,
+                    'mutation' => $mutasi,
+                    'ending_stock' => $stokAkhir,
+                    'qty' => $transaksiPeriode['penjualan_qty'],
+                    'selling' => $this->formatCurrency($transaksiPeriode['penjualan_bruto']),
+                    'discount_price' => $this->formatCurrency($transaksiPeriode['total_diskon']),
+                    'cost' => $this->formatCurrency($transaksiPeriode['total_cost']),
+                    'total_after_discount' => $this->formatCurrency($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_diskon']),
+                    'gross_profit' => $this->formatCurrency($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_cost']),
+                    'net_profit' => $this->formatCurrency($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_cost'] - $transaksiPeriode['total_diskon']),
+                    'ending_stock_balance' => $this->formatCurrency($endingStockBalance),
+                    'ending_stock_balance_sell' => $this->formatCurrency($endingStockBalanceSell),
+                    'purchase_qty' => $transaksiPeriode['pembelian_qty'],
+                    'purchase_total' => $this->formatCurrency($transaksiPeriode['pembelian_total']),
+                    'total_money_product' => $this->formatCurrency($transaksiPeriode['penjualan_bruto'] + $endingStockBalanceSell),
+                ];
 
-            // stok opname dalam periode
-            ->leftJoin(DB::raw("(SELECT product_id, actual_stock
-                FROM (
-                  SELECT product_id, actual_stock, created_at, 
-                         ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY created_at DESC) as rn
-                  FROM stock_opname_items
-                  WHERE created_at BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
-                ) t
-                WHERE rn = 1
-            ) li"), 'li.product_id', '=', 'p.id')
+                $reports[] = $reportRow;
 
-            // stok masuk sebelum periode
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
-                FROM stocks
-                WHERE type='in' AND date < '{$startDate->toDateTimeString()}'
-                GROUP BY product_id
-            ) ib"), 'ib.product_id', '=', 'p.id')
+                // Update footer
+                $footer['total_cost'] += $transaksiPeriode['total_cost'];
+                $footer['total_gross'] += $transaksiPeriode['penjualan_bruto'];
+                $footer['total_net'] += ($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_diskon']);
+                $footer['total_discount'] += $transaksiPeriode['total_diskon'];
+                $footer['total_gross_profit'] += ($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_cost']);
+                $footer['total_net_profit_before_discount_selling'] += ($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_cost']);
+                $footer['total_net_profit_after_discount_selling'] += ($transaksiPeriode['penjualan_bruto'] - $transaksiPeriode['total_cost'] - $transaksiPeriode['total_diskon']);
+                $footer['total_qty'] += $transaksiPeriode['penjualan_qty'];
+                $footer['total_ending_stock'] += $stokAkhir;
+                $footer['total_ending_stock_balance'] += $endingStockBalance;
+                $footer['total_ending_stock_balance_sell'] += $endingStockBalanceSell;
+                $footer['total_pembelian'] += $transaksiPeriode['pembelian_total'];
+                $footer['total_money_product'] += ($transaksiPeriode['penjualan_bruto'] + $endingStockBalanceSell);
+            }
 
-            // penjualan sebelum periode
-            ->leftJoin(DB::raw("(SELECT sd.product_id, SUM(sd.qty) as total_out
-                FROM selling_details sd
-                JOIN sellings s ON s.id = sd.selling_id
-                WHERE s.date < '{$startDate->toDateTimeString()}'
-                GROUP BY sd.product_id
-            ) ob"), 'ob.product_id', '=', 'p.id')
+            $this->formatFooter($footer);
 
-            // stok masuk dalam periode
-            ->leftJoin(DB::raw("(SELECT product_id, SUM(init_stock) as total_in
-                FROM stocks
-                WHERE type='in' AND date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
-                GROUP BY product_id
-            ) ip"), 'ip.product_id', '=', 'p.id')
+            return [
+                'reports' => $reports,
+                'footer' => $footer,
+                'header' => $this->formatHeader($about, $startDate, $endDate, $timezone),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Product Report Generation Failed', [
+                'error' => $e->getMessage(),
+                'data' => $data
+            ]);
+            throw $e;
+        }
+    }
 
-            // khusus pembelian (stocks dengan purchasing_id)
-            ->leftJoin(DB::raw("(SELECT s.product_id,
-                        SUM(s.init_stock) as total_in,
-                        SUM(s.init_stock * p.initial_price) as total_purchase
-                    FROM stocks s
-                    JOIN products p ON p.id = s.product_id
-                    WHERE s.type='in'
-                      AND s.purchasing_id IS NOT NULL
-                      AND s.date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
-                    GROUP BY s.product_id
-            ) pb"), 'pb.product_id', '=', 'p.id')
+    private function validateInput(array $data): void
+    {
+        if (empty($data['start_date']) || empty($data['end_date'])) {
+            throw new \InvalidArgumentException('Start date and end date are required');
+        }
 
-            // penjualan dalam periode
-            ->leftJoin(DB::raw("(SELECT sd.product_id,
-                    SUM(sd.qty) as total_out,
-                    SUM(sd.price) as total_price,
-                    SUM(sd.cost) as total_cost,
-                    SUM(sd.discount_price) as total_discount
-                FROM selling_details sd
-                JOIN sellings s ON s.id = sd.selling_id
-                WHERE s.date BETWEEN '{$startDate->toDateTimeString()}' AND '{$endDate->toDateTimeString()}'
-                GROUP BY sd.product_id
-            ) op"), 'op.product_id', '=', 'p.id')
+        $startDate = Carbon::parse($data['start_date']);
+        $endDate = Carbon::parse($data['end_date']);
 
+        if ($endDate->lt($startDate)) {
+            throw new \InvalidArgumentException('End date must be after start date');
+        }
+    }
+
+    /**
+     * Hitung stok awal dengan mensimulasikan semua transaksi sebelum periode
+     * Mengikuti logika StockCardReportService
+     */
+    private function hitungStokAwal($productId, Carbon $startDate)
+    {
+        // Ambil stok masuk pertama sebagai stok awal
+        $stokAwalRow = Stock::where('product_id', $productId)
+            ->where('type', 'in')
+            ->orderBy('date')
+            ->orderBy('created_at')
+            ->first();
+
+        if (!$stokAwalRow) {
+            return 0;
+        }
+
+        $stokAkhir = $stokAwalRow->init_stock;
+
+        // Ambil semua transaksi sebelum startDate (kecuali stok awal pertama)
+        $logs = collect();
+
+        // 1. Pembelian sebelum periode
+        $pembelian = Stock::where('product_id', $productId)
+            ->whereNotNull('purchasing_id')
+            ->where('date', '<', $startDate->toDateTimeString())
+            ->orderBy('created_at')
             ->get();
 
-        $reports = [];
-        $footer = [
+        foreach ($pembelian as $p) {
+            $logs->push([
+                'waktu_input' => $p->created_at,
+                'jenis' => 'masuk',
+                'jumlah' => $p->init_stock,
+            ]);
+        }
+
+        // 2. Penjualan sebelum periode
+        $penjualan = SellingDetail::whereHas('selling', function ($q) use ($startDate) {
+            $q->where('date', '<', $startDate->toDateTimeString());
+        })
+            ->where('product_id', $productId)
+            ->with('selling')
+            ->get();
+
+        foreach ($penjualan as $sd) {
+            $logs->push([
+                'waktu_input' => $sd->selling->created_at,
+                'jenis' => 'keluar',
+                'jumlah' => $sd->qty,
+            ]);
+        }
+
+        // 3. Stock Opname sebelum periode
+        $opname = StockOpnameItem::where('product_id', $productId)
+            ->where('created_at', '<', $startDate->toDateTimeString())
+            ->orderBy('created_at')
+            ->get();
+
+        foreach ($opname as $o) {
+            $logs->push([
+                'waktu_input' => $o->created_at,
+                'jenis' => 'opname',
+                'stok_set' => $o->actual_stock,
+            ]);
+        }
+
+        // Sort berdasarkan waktu input dan simulasikan
+        $logs = $logs->sortBy('waktu_input');
+
+        foreach ($logs as $log) {
+            if (isset($log['stok_set'])) {
+                // Stock Opname: set langsung ke nilai actual_stock
+                $stokAkhir = $log['stok_set'];
+            } else {
+                // Pembelian/Penjualan: tambah/kurang
+                if ($log['jenis'] === 'masuk') {
+                    $stokAkhir += $log['jumlah'];
+                } else {
+                    $stokAkhir -= $log['jumlah'];
+                }
+            }
+        }
+
+        return $stokAkhir;
+    }
+
+    /**
+     * Ambil transaksi dalam periode
+     */
+    private function getTransaksiPeriode($productId, Carbon $startDate, Carbon $endDate)
+    {
+        $result = [
+            'pembelian_qty' => 0,
+            'pembelian_total' => 0,
+            'penjualan_qty' => 0,
+            'penjualan_bruto' => 0,
+            'total_cost' => 0,
+            'total_diskon' => 0,
+        ];
+
+        // Pembelian dalam periode
+        $pembelian = Stock::where('product_id', $productId)
+            ->whereNotNull('purchasing_id')
+            ->whereBetween('date', [$startDate->toDateTimeString(), $endDate->toDateTimeString()])
+            ->get();
+
+        foreach ($pembelian as $p) {
+            $result['pembelian_qty'] += $p->init_stock;
+            $result['pembelian_total'] += ($p->init_stock * $p->product->initial_price);
+        }
+
+        // Penjualan dalam periode
+        $penjualan = SellingDetail::whereHas('selling', function ($q) use ($startDate, $endDate) {
+            $q->whereBetween('date', [$startDate->toDateTimeString(), $endDate->toDateTimeString()]);
+        })
+            ->where('product_id', $productId)
+            ->get();
+
+        foreach ($penjualan as $sd) {
+            $result['penjualan_qty'] += $sd->qty;
+            $result['penjualan_bruto'] += $sd->price;
+            $result['total_cost'] += $sd->cost;
+            $result['total_diskon'] += $sd->discount_price;
+        }
+
+        return $result;
+    }
+
+    private function initializeFooter(): array
+    {
+        return [
             'total_cost' => 0,
             'total_gross' => 0,
             'total_net' => 0,
@@ -154,79 +267,43 @@ class ProductReportService
             'total_pembelian' => 0,
             'total_money_product' => 0,
         ];
+    }
 
-        foreach ($rows as $row) {
-            $reports[] = [
-                'sku' => $row->sku,
-                'name' => $row->name,
-                'initial_price' => $this->formatCurrency($row->initial_price),
-                'selling_price' => $this->formatCurrency($row->selling_price),
-                'beginning_stock' => (int) $row->stok_awal,
-                'mutation' => (int) $row->mutasi,
-                'ending_stock' => (int) $row->stok_akhir,
-                'qty' => (int) $row->qty,
-                'selling' => $this->formatCurrency($row->penjualan_bruto),
-                'discount_price' => $this->formatCurrency($row->total_diskon),
-                'cost' => $this->formatCurrency($row->total_cost),
-                'total_after_discount' => $this->formatCurrency($row->total_after_discount),
-                'gross_profit' => $this->formatCurrency($row->laba_kotor),
-                'net_profit' => $this->formatCurrency($row->laba_bersih),
-                'ending_stock_balance' => $this->formatCurrency($row->saldo_akhir),
-                'ending_stock_balance_sell' => $this->formatCurrency($row->saldo_akhir_jual),
-                'purchase_qty' => (int) $row->qty_pembelian,
-                'purchase_total' => $this->formatCurrency($row->pembelian_bruto),
-                'total_money_product' => $this->formatCurrency($row->penjualan_bruto + $row->saldo_akhir_jual),
-            ];
+    private function formatFooter(array &$footer): void
+    {
+        $currencyFields = [
+            'total_cost',
+            'total_gross',
+            'total_net',
+            'total_discount',
+            'total_gross_profit',
+            'total_net_profit_before_discount_selling',
+            'total_net_profit_after_discount_selling',
+            'total_ending_stock_balance',
+            'total_ending_stock_balance_sell',
+            'total_pembelian',
+            'total_money_product'
+        ];
 
-            $footer['total_cost'] += $row->total_cost;
-            $footer['total_gross'] += $row->penjualan_bruto;
-            $footer['total_net'] += $row->total_after_discount;
-            $footer['total_discount'] += $row->total_diskon;
-            $footer['total_gross_profit'] += $row->laba_kotor;
-            $footer['total_net_profit_before_discount_selling'] += $row->laba_kotor;
-            $footer['total_net_profit_after_discount_selling'] += $row->laba_bersih;
-            $footer['total_qty'] += (int) $row->qty;
-            $footer['total_ending_stock'] += $row->stok_akhir;
-            $footer['total_ending_stock_balance'] += $row->saldo_akhir;
-            $footer['total_ending_stock_balance_sell'] += $row->saldo_akhir_jual;
-            $footer['total_pembelian'] += $row->pembelian_bruto;
-            $footer['total_money_product'] += $row->penjualan_bruto + $row->saldo_akhir_jual;
+        foreach ($currencyFields as $field) {
+            $footer[$field] = $this->formatCurrency($footer[$field]);
         }
+    }
 
-        foreach (
-            [
-                'total_cost',
-                'total_gross',
-                'total_net',
-                'total_discount',
-                'total_gross_profit',
-                'total_net_profit_before_discount_selling',
-                'total_net_profit_after_discount_selling',
-                'total_ending_stock_balance',
-                'total_ending_stock_balance_sell',
-                'total_pembelian',
-                'total_money_product'
-            ] as $key
-        ) {
-            $footer[$key] = $this->formatCurrency($footer[$key]);
-        }
-
+    private function formatHeader($about, Carbon $startDate, Carbon $endDate, string $timezone): array
+    {
         return [
-            'reports' => $reports,
-            'footer' => $footer,
-            'header' => [
-                'shop_name' => $about?->shop_name,
-                'shop_location' => $about?->shop_location,
-                'business_type' => $about?->business_type,
-                'owner_name' => $about?->owner_name,
-                'start_date' => $startDate->setTimezone($timezone)->format('d F Y'),
-                'end_date' => $endDate->setTimezone($timezone)->format('d F Y'),
-            ],
+            'shop_name' => $about?->shop_name,
+            'shop_location' => $about?->shop_location,
+            'business_type' => $about?->business_type,
+            'owner_name' => $about?->owner_name,
+            'start_date' => $startDate->setTimezone($timezone)->format('d F Y'),
+            'end_date' => $endDate->setTimezone($timezone)->format('d F Y'),
         ];
     }
 
-    private function formatCurrency($value)
+    private function formatCurrency($value): string
     {
-        return Number::format($value);
+        return 'Rp ' . Number::format($value, 0);
     }
 }
