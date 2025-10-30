@@ -50,7 +50,7 @@ class ProductReportExport implements
             'Harga Modal',
             'Harga Jual',
             'Stok Awal',
-            'Mutasi',
+            'Selsih Stok (Awal - Akhir)',
             'Stok Akhir',
             'Qty Jual',
             'Penjualan Bruto',
