@@ -2,6 +2,7 @@
 
 namespace App\Filament\Tenant\Pages;
 
+use App\Exports\ProductReportExport;
 use App\Filament\Tenant\Pages\Traits\HasReportPageSidebar;
 use App\Services\Tenants\ProductReportService;
 use App\Traits\HasTranslatableResource;
@@ -11,9 +12,11 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\InteractsWithFormActions;
 use Filament\Pages\Page;
 use Livewire\Attributes\Url;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductReport extends Page implements HasActions, HasForms
 {
@@ -66,18 +69,20 @@ class ProductReport extends Page implements HasActions, HasForms
     {
         return [
             Action::make(__('Generate'))
-                ->action('generate'),
+                ->action('generate')
+                ->color('primary')
+                ->icon('heroicon-o-magnifying-glass'),
+
+            Action::make('download-excel')
+                ->label(__('Download Excel'))
+                ->action('downloadExcel')
+                ->color('success')
+                ->icon('heroicon-o-arrow-down-tray'),
+
             Action::make(__('Print'))
-                ->color('warning')
-                ->extraAttributes([
-                    'id' => 'print-btn',
-                ])
+                ->color('gray')
+                ->extraAttributes(['id' => 'print-btn'])
                 ->icon('heroicon-o-printer'),
-            Action::make('download-pdf')
-                ->label(__('Download as PDF'))
-                ->action('downloadPdf')
-                ->color('warning')
-                ->icon('heroicon-o-arrow-down-on-square'),
         ];
     }
 
@@ -88,16 +93,74 @@ class ProductReport extends Page implements HasActions, HasForms
             'data.end_date' => 'required',
         ]);
 
-        $this->reports = $productReportService->generate($this->data);
+        try {
+            $this->reports = $productReportService->generate($this->data);
+
+            if (empty($this->reports['reports'])) {
+                Notification::make()
+                    ->title(__('No data found'))
+                    ->warning()
+                    ->send();
+                return;
+            }
+
+            Notification::make()
+                ->title(__('Report generated successfully'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Failed to generate report'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
-    public function downloadPdf()
+    public function downloadExcel()
     {
         $this->validate([
-            'data.start_date' => 'required',
-            'data.end_date' => 'required',
+            'data.start_date' => 'required|date',
+            'data.end_date' => 'required|date|after_or_equal:data.start_date',
         ]);
 
-        return $this->redirectRoute('product-report.generate', $this->data);
+        try {
+            $productReportService = app(ProductReportService::class);
+            $reportData = $productReportService->generate($this->data);
+
+            if (empty($reportData['reports'])) {
+                Notification::make()
+                    ->title(__('No data found'))
+                    ->warning()
+                    ->send();
+                return;
+            }
+
+            $filename = sprintf(
+                'laporan-produk-%s-to-%s.xlsx',
+                date('Y-m-d', strtotime($this->data['start_date'])),
+                date('Y-m-d', strtotime($this->data['end_date']))
+            );
+
+            return Excel::download(
+                new ProductReportExport(
+                    $reportData['reports'],
+                    $reportData['footer'],
+                    $reportData['header']
+                ),
+                $filename
+            );
+        } catch (\Exception $e) {
+            \Log::error('Excel download failed', [
+                'error' => $e->getMessage(),
+                'data' => $this->data
+            ]);
+
+            Notification::make()
+                ->title(__('Failed to download Excel'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }
